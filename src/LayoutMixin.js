@@ -253,6 +253,7 @@ export default function LayoutMixin (BaseClass) {
       applyLayoutProperties(this.layoutNode, oldStyle, value);
 
       const {
+        alpha = this.alpha,
         scaleX = this.scale.x,
         scaleY = this.scale.y,
         blendMode = this.blendMode,
@@ -265,6 +266,7 @@ export default function LayoutMixin (BaseClass) {
         zIndex = this.zIndex
       } = this._layoutStyle;
 
+      this.alpha = alpha;
       this.blendMode = blendMode;
       this.filters = filters;
       this.offsetX = offsetX;

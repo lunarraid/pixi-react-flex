@@ -1,7 +1,7 @@
 import { Texture } from '@pixi/core';
 import { applyDefaultProps } from '@pixi/react';
 
-export function getTextureFromProps (elementType, root, props = {}) {
+export function getTextureFromProps (root, props = {}) {
 
   function emitChange (texture) {
     requestAnimationFrame(() => texture?.__reactpixi?.root?.emit(`__REACT_PIXI_REQUEST_RENDER__`));
@@ -9,9 +9,18 @@ export function getTextureFromProps (elementType, root, props = {}) {
 
   if (props.texture) {
     return props.texture;
+  } else if (props.style?.texture) {
+    return props.style.texture;
   }
 
-  const { image = props.image, video = props.video, source = props.source } = props.style || props;
+  let { image = props.image, video = props.video, source = props.source } = props;
+
+  if (props.style) {
+    image = props.style.image || image;
+    video = props.style.video || video;
+    source = props.style.source || source;
+  }
+
   const result = image || video || source || null;
 
   if (!result) {
@@ -53,7 +62,7 @@ export function applyDefaultTextureProps (instance, oldProps, newProps, onTextur
       changed = true;
     }
 
-    const newTexture = getTextureFromProps('FlexNineSliceSprite', root, newProps) || Texture.WHITE;
+    const newTexture = getTextureFromProps(root, newProps) || Texture.WHITE;
 
     instance.texture = newTexture;
 
