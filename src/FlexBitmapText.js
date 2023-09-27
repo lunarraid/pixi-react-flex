@@ -34,7 +34,7 @@ class FlexBitmapText extends LayoutMixin(BitmapText) {
   }
 
   _onLayout (x, y, width, height) {
-    this.maxWidth = width;
+    this.maxWidth = width + 1;
   }
 
 }
@@ -42,7 +42,7 @@ class FlexBitmapText extends LayoutMixin(BitmapText) {
 export default PixiComponent('FlexBitmapText', {
 
   create: (props) => {
-    return new FlexBitmapText('', { fontName: props.style?.fontName || props.fontName || getDefaultFont() });
+    return new FlexBitmapText(props.text || '', { fontName: props.style?.fontName || props.fontName || getDefaultFont() });
   },
 
   applyProps: (instance, oldProps, newProps) => {
@@ -56,7 +56,7 @@ export default PixiComponent('FlexBitmapText', {
 
     style = instance.layoutStyle;
 
-    let needsUpdate = false;
+    let needsUpdate = oldProps.text !== newProps.text;
 
     for (const key of textStyleKeys) {
       const oldValue = keyCache[key];

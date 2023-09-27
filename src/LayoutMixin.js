@@ -8,6 +8,20 @@ nodeConfig.setPointScaleFactor(0);
 const NO_STYLE = {};
 const MAX_LAYOUT_ATTEMPTS = 3;
 
+const EXTRA_STYLE_PROPS = {
+  alpha: 1,
+  anchorX: 0.5,
+  anchorY: 0.5,
+  blendMode: 0,
+  filters: [],
+  offsetX: 0,
+  offsetY: 0,
+  rotation: 0,
+  visible: true,
+  tint: 0xffffff,
+  zIndex: 0
+};
+
 export default function LayoutMixin (BaseClass) {
   const result = class LayoutMixin extends BaseClass {
 
@@ -114,7 +128,7 @@ export default function LayoutMixin (BaseClass) {
     }
 
     updateTransform () {
-      if (this.layoutNode.isDirty()) {
+      if (this.layoutNode?.isDirty()) {
         const root = this._getLayoutRoot();
         if (root === this) {
           this.updateLayoutGraph();
@@ -244,37 +258,26 @@ export default function LayoutMixin (BaseClass) {
     }
 
     set layoutStyle (value) {
+
       if (this._layoutStyle === value) {
         return;
       }
 
       const oldStyle = this._layoutStyle || NO_STYLE;
-      this._layoutStyle = value ? mergeStyles(value) : NO_STYLE;
-      applyLayoutProperties(this.layoutNode, oldStyle, value);
+      const style = this._layoutStyle = value ? mergeStyles(value) : NO_STYLE;
 
-      const {
-        alpha = this.alpha,
-        scaleX = this.scale.x,
-        scaleY = this.scale.y,
-        blendMode = this.blendMode,
-        filters = this.filters,
-        offsetX = 0,
-        offsetY = 0,
-        rotation = this.rotation,
-        visible = this.visible,
-        tint = this.tint,
-        zIndex = this.zIndex
-      } = this._layoutStyle;
+      applyLayoutProperties(this.layoutNode, oldStyle, style);
 
-      this.alpha = alpha;
-      this.blendMode = blendMode;
-      this.filters = filters;
-      this.offsetX = offsetX;
-      this.offsetY = offsetY;
-      this.rotation = rotation;
-      this.visible = visible;
-      this.tint = tint;
-      this.zIndex = zIndex;
+      for (const propName in EXTRA_STYLE_PROPS) {
+        if (propName in oldStyle && style[propName] === undefined) {
+          this[propName] = EXTRA_STYLE_PROPS[propName];
+        } else if (propName in style) {
+          this[propName] = style[propName];
+        }
+      }
+
+      const { scaleX = 1, scaleY = 1 } = style;
+
       this.scale.set(scaleX, scaleY);
     }
 

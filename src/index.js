@@ -5,6 +5,9 @@ import NineSlicePlane from './FlexNineSlicePlane';
 import Sprite from './FlexSprite';
 import Text from './FlexText';
 import TilingSprite from './FlexTilingSprite';
+import LayoutMixin from './LayoutMixin';
+
+export * from './PropsUtils';
 
 export {
   BitmapText,
@@ -13,5 +16,6 @@ export {
   NineSlicePlane,
   Sprite,
   Text,
-  TilingSprite
+  TilingSprite,
+  LayoutMixin
 };
