@@ -8,9 +8,21 @@ const FlexGraphics = LayoutMixin(Graphics);
 export default PixiComponent('FlexGraphics', {
 
   create: (props) => {
-    return new FlexGraphics();
+    return props.geometry
+      ? new FlexGraphics(props.geometry.geometry)
+      : new FlexGraphics();
   },
 
-  applyProps: applyDefaultStyleProps
+  applyProps (instance, oldProps, newProps) {
+    let changed = applyDefaultStyleProps(instance, oldProps, newProps);
+
+    if (oldProps.draw !== newProps.draw && typeof newProps.draw === 'function')
+    {
+        changed = true;
+        newProps.draw.call(instance, instance);
+    }
+
+    return changed;
+  }
 
 });
