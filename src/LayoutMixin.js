@@ -83,15 +83,7 @@ export default function LayoutMixin (BaseClass) {
         cached.width = newLayout.width;
         cached.height = newLayout.height;
 
-        const anchorOffsetX = this.anchorX * cached.width;
-        const anchorOffsetY = this.anchorY * cached.height;
-
-        this.position.set(
-          cached.x + anchorOffsetX + this.offsetX,
-          cached.y + anchorOffsetY + this.offsetY
-        );
-
-        this.pivot.set(cached.width * this.anchorX, cached.height * this.anchorY);
+        this._updatePosition();
 
         this._onLayout(cached.x, cached.y, cached.width, cached.height);
 
@@ -106,6 +98,19 @@ export default function LayoutMixin (BaseClass) {
         const child = this.children[i];
         child.__isLayoutNode && child.applyLayout();
       }
+    }
+
+    _updatePosition () {
+      const cached = this.cachedLayout;
+      const anchorOffsetX = this.anchorX * cached.width;
+      const anchorOffsetY = this.anchorY * cached.height;
+
+      this.position.set(
+        cached.x + anchorOffsetX + this.offsetX,
+        cached.y + anchorOffsetY + this.offsetY
+      );
+
+      this.pivot.set(cached.width * this.anchorX, cached.height * this.anchorY);
     }
 
     _renderCount = 0;
@@ -279,6 +284,7 @@ export default function LayoutMixin (BaseClass) {
       const { scaleX = 1, scaleY = 1 } = style;
 
       this.scale.set(scaleX, scaleY);
+      this._updatePosition();
     }
 
   };
