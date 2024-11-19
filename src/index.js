@@ -1,21 +1,34 @@
-import BitmapText from './FlexBitmapText';
-import Container from './FlexContainer';
-import Graphics from './FlexGraphics';
-import NineSlicePlane from './FlexNineSlicePlane';
-import Sprite from './FlexSprite';
-import Text from './FlexText';
-import TilingSprite from './FlexTilingSprite';
-import LayoutMixin from './LayoutMixin';
+import {
+  LayoutIndexContext,
+  LayoutNodeContext,
+  LayoutChildren,
+  LayoutNode
+}  from './flex/Layout.jsx';
 
-export * from './PropsUtils';
+import applyLayoutProperties from './flex/applyLayoutProperties';
+import BitmapText from './view/BitmapText.jsx';
+import Container from './view/Container.jsx';
+import Graphics from './view/Graphics.jsx';
+import HTMLText from './view/HTMLText.jsx';
+import NineSliceSprite from './view/NineSliceSprite.jsx';
+import Sprite from './view/Sprite.jsx';
+import Text from './view/Text.jsx';
+import TilingSprite from './view/TilingSprite.jsx';
+import getTextureFromProps from './helpers/getTextureFromProps';
 
 export {
+  applyLayoutProperties,
   BitmapText,
   Container,
   Graphics,
-  NineSlicePlane,
+  HTMLText,
+  NineSliceSprite,
   Sprite,
   Text,
   TilingSprite,
-  LayoutMixin
+  getTextureFromProps,
+  LayoutIndexContext,
+  LayoutNodeContext,
+  LayoutChildren,
+  LayoutNode
 };

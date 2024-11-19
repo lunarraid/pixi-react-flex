@@ -20,12 +20,12 @@ export default {
     }
   ],
   plugins: [
-    external(),
+    commonjs(),
+    external({ includeDependencies: true }),
+    resolve(),
     babel({
       exclude: 'node_modules/**',
       babelHelpers: 'runtime'
     }),
-    resolve(),
-    commonjs()
   ]
 };
