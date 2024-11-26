@@ -1,5 +1,4 @@
 import { Point, Texture } from '@pixi/core';
-import { applyDefaultProps } from '@pixi/react';
 
 const eventHandlers = [
   'click',
@@ -131,11 +130,17 @@ export function applyDefaultStyleProps(instance, oldProps, newProps) {
     if (oldProps[propName] !== newProps[propName]) {
 
       if (PROPS_EVENTS[propName]) {
+
         if (oldProps[propName]) {
           instance.removeListener(propName, oldProps[propName]);
+          changed = true;
         }
-        instance.on(propName, newProps[propName]);
-        changed = true;
+
+        if (newProps[propName]) {
+          instance.on(propName, newProps[propName]);
+          changed = true;
+        }
+
       } else if (!IGNORE_PROPS[propName] && instance[propName] !== undefined) {
         instance[propName] = newProps[propName];
         changed = true;

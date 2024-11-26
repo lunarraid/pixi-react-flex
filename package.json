@@ -1,6 +1,6 @@
 {
   "name": "@lunarraid/pixi-react-flex",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Flexbox components for @pixi/react",
   "author": "lunarraid",
   "license": "MIT",
