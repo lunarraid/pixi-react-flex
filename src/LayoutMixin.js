@@ -1,6 +1,6 @@
 import mergeStyles from './mergeStyles';
 import applyLayoutProperties from './applyLayoutProperties';
-import { Config, Node } from 'typeflex';
+import { Config, Node, POSITION_TYPE_ABSOLUTE } from 'typeflex';
 
 const nodeConfig = Config.create();
 nodeConfig.setPointScaleFactor(0);
@@ -19,7 +19,8 @@ const EXTRA_STYLE_PROPS = {
   rotation: 0,
   visible: true,
   tint: 0xffffff,
-  zIndex: 0
+  zIndex: 0,
+  sortableChildren: false
 };
 
 export default function LayoutMixin (BaseClass) {
@@ -28,7 +29,7 @@ export default function LayoutMixin (BaseClass) {
     constructor (...args) {
       super(...args);
 
-      this._sortedChildren = null;
+      this._unsortedChildren = [];
 
       this.anchorX = 0.5;
       this.anchorY = 0.5;
@@ -53,6 +54,32 @@ export default function LayoutMixin (BaseClass) {
 
       this._isMeasureFunctionSet = false;
       this.updateMeasureFunction(false);
+    }
+
+    addChildAt (child, index) {
+      this._onChildAdded(child, index);
+      return super.addChildAt(child, index);
+    }
+
+    addChild (...children) {
+      if (children.length === 1) {
+        this._onChildAdded(children[0], this._unsortedChildren.length);
+      }
+
+      return super.addChild(...children);
+    }
+
+    removeChild (...children) {
+      if (children.length === 1) {
+        this._onChildRemoved(this._unsortedChildren.indexOf(children[0]));
+      }
+
+      return super.removeChild(...children);
+    }
+
+    removeChildAt (index) {
+      this._onChildRemoved(index);
+      return super.removeChildAt(index);
     }
 
     addToCallbackPool (view) {
@@ -100,6 +127,10 @@ export default function LayoutMixin (BaseClass) {
       }
     }
 
+    getChildIndex (child) {
+      return this._unsortedChildren.indexOf(child);
+    }
+
     _updatePosition () {
       const cached = this.cachedLayout;
       const anchorOffsetX = this.anchorX * cached.width;
@@ -114,23 +145,6 @@ export default function LayoutMixin (BaseClass) {
     }
 
     _renderCount = 0;
-
-    render (renderer) {
-
-      if (!this.sortableChildren) {
-        return super.render(renderer);
-      }
-
-      const { children } = this;
-
-      if (!this._sortedChildren) {
-        this._sortedChildren = children.slice();
-      }
-
-      this.children = this._sortedChildren;
-      super.render(renderer);
-      this.children = children;
-    }
 
     updateTransform () {
       if (this.layoutNode?.isDirty()) {
@@ -168,60 +182,6 @@ export default function LayoutMixin (BaseClass) {
     }
 
     _onLayout (x, y, width, height) {
-    }
-
-    onChildrenChange (_length) {
-      super.onChildrenChange(_length);
-
-      const n = this.layoutNode;
-      const childCount = this.children.length;
-      const layoutChildCount = n.getChildCount();
-
-      let hasNewChildren = false;
-      let childIndex = -1;
-
-      for (let i = 0; i < childCount; i++) {
-        const child = this.children[i];
-
-        if (!child.__isLayoutNode) {
-          continue;
-        }
-
-        if (!hasNewChildren) {
-          hasNewChildren = true;
-          this.updateMeasureFunction(true);
-        }
-
-        childIndex++;
-
-        const childNode = child.layoutNode;
-        const currentNodeAtIndex = i < layoutChildCount ? n.getChild(childIndex) : null;
-
-        if (childNode === currentNodeAtIndex) {
-          continue;
-        }
-
-        if (childNode.getParent() === n) {
-          n.removeChild(childNode);
-        }
-
-        n.insertChild(childNode, childIndex);
-      }
-
-      childIndex++;
-
-      const amountToDrop = layoutChildCount - childIndex;
-
-      for (let i = 0; i < amountToDrop; i++) {
-        const node = n.getChild(childIndex);
-        node.getParent().removeChild(node);
-      }
-
-      !hasNewChildren && this.updateMeasureFunction(false);
-
-      if (this._sortedChildren) {
-        this._sortedChildren = this.children.slice();
-      }
     }
 
     _getLayoutRoot () {
@@ -281,10 +241,54 @@ export default function LayoutMixin (BaseClass) {
         }
       }
 
-      const { scaleX = 1, scaleY = 1 } = style;
+      const { scaleX = 1, scaleY = 1, skewX = this.skew.x, skewY = this.skew.y } = style;
 
       this.scale.set(scaleX, scaleY);
+      this.skew.set(skewX, skewY);
       this._updatePosition();
+    }
+
+    _onChildAdded (child, index) {
+
+      if (index === this._unsortedChildren.length) {
+        this._unsortedChildren.push(child);
+      } else {
+        this._unsortedChildren.splice(index, 0, child);
+      }
+
+      if (child.__isLayoutNode) {
+        this.updateMeasureFunction(true);
+        const insertionIndex = this.getLayoutIndex(index);
+        this.layoutNode.insertChild(child.layoutNode, insertionIndex);
+      }
+    }
+
+    _onChildRemoved (index) {
+      const child = this._unsortedChildren[index];
+      this._unsortedChildren.splice(index, 1);
+
+      if (child.__isLayoutNode) {
+        this.layoutNode.removeChild(child.layoutNode);
+        this.updateMeasureFunction(this.layoutNode.getChildCount() > 0);
+      }
+    }
+
+    getLayoutIndex (index) {
+      const childCount = this._unsortedChildren.length;
+
+      if (index >= childCount) {
+        return childCount;
+      }
+
+      let result = 0;
+
+      for (let i = 0; i < index; i++) {
+        if (this._unsortedChildren[i].__isLayoutNode) {
+          result++;
+        }
+      }
+
+      return result;
     }
 
   };

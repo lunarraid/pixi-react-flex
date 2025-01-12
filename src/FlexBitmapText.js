@@ -3,7 +3,7 @@ import { BitmapText, BitmapFont } from '@pixi/text-bitmap';
 import LayoutMixin from './LayoutMixin';
 import { applyDefaultStyleProps } from './PropsUtils';
 
-const textStyleKeys = [ 'align', 'fontName', 'fontSize', 'letterSpacing', 'maxWidth' ];
+const textStyleKeys = [ 'align', 'fontName', 'fontSize', 'letterSpacing', 'wordWrap' ];
 const keyCache = {};
 
 let _defaultFont = null;
@@ -25,16 +25,29 @@ class FlexBitmapText extends LayoutMixin(BitmapText) {
   sizeData = { width: 0, height: 0 };
 
   measure (node, width, widthMode, height, heightMode) {
+    const { wordWrap = true } = this.layoutStyle;
     const previousMaxWidth = this.maxWidth;
-    this.maxWidth = width;
+
+    if (wordWrap) {
+      this.maxWidth = width;
+    } else {
+      this.maxWidth = 0;
+    }
+
     this.sizeData.width = this.textWidth;
     this.sizeData.height = this.textHeight;
     this.maxWidth = previousMaxWidth;
+
     return this.sizeData;
   }
 
   _onLayout (x, y, width, height) {
-    this.maxWidth = width + 1;
+    const { wordWrap = true } = this.layoutStyle;
+    if (wordWrap) {
+      this.maxWidth = width + 1;
+    } else {
+      this.maxWidth = 0;
+    }
   }
 
 }

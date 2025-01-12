@@ -41,7 +41,7 @@ const PROPS_DISPLAY_OBJECT = {
   alpha: 1,
   cacheAsBitmap: false,
   cursor: null,
-  eventMode: 'none',
+  eventMode: 'passive',
   filterArea: null,
   filters: null,
   hitArea: null,
@@ -53,7 +53,9 @@ const PROPS_DISPLAY_OBJECT = {
   skew: new Point(0, 0),
   visible: true,
   x: 0,
-  y: 0
+  y: 0,
+  sortableChildren: false,
+  zIndex: 0
 };
 
 const EVENT_COUNT = eventHandlers.length;
