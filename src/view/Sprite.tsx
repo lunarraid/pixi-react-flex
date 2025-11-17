@@ -1,13 +1,15 @@
 import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { extend } from '@pixi/react';
+import { extend, PixiReactElementProps } from '@pixi/react';
 import { Sprite } from 'pixi.js';
-import { LayoutNode } from '../flex/Layout.jsx';
-import getTextureFromProps from '../helpers/getTextureFromProps';
+import { LayoutNode, LayoutProps } from '../flex/Layout.js';
+import getTextureFromProps from '../helpers/getTextureFromProps.js';
 import { MeasureMode } from 'yoga-layout/load';
 
 extend({ Sprite });
 
-const FlexSprite = forwardRef(function FlexSprite (props, ref) {
+export type SpriteProps = PixiReactElementProps<typeof Sprite> & LayoutProps;
+
+const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
 
   if (props.children) {
     throw new Error('Only containers allow children');
@@ -22,14 +24,14 @@ const FlexSprite = forwardRef(function FlexSprite (props, ref) {
 
   const { onLayout } = props;
 
-  const setLayout = useCallback((x, y, width, height) => {
+  const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
     const s = viewRef.current;
     s.position.set(x, y);
     s.setSize(width, height);
     onLayout?.(x, y, width, height);
   }, [ onLayout ]);
 
-  const measure = useCallback((width, widthMode, height, heightMode) => {
+  const measure = useCallback((width: number, widthMode: MeasureMode, height: number, heightMode: MeasureMode) => {
 
     if (!texture.orig || texture.orig.width === 0 || texture.orig.height === 0) {
       return { width: 0, height: 0 };
@@ -70,7 +72,7 @@ const FlexSprite = forwardRef(function FlexSprite (props, ref) {
 
   return (
     <LayoutNode ref={ layoutRef } style={ props.style } measure={ measure } onLayout={ setLayout }>
-      <sprite { ...props } ref={ viewRef } texture={ texture } />
+      <pixiSprite { ...props } ref={ viewRef } texture={ texture } />
     </LayoutNode>
   );
 

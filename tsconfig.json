@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+      "declaration": true,
+      "declarationDir": "dist",
+      "module": "esnext",
+      "target": "esnext",
+      "lib": [
+          "DOM",
+          "ESNext"
+      ],
+      "sourceMap": true,
+      "jsx": "react-jsx",
+      "moduleResolution": "bundler",
+      "allowSyntheticDefaultImports": true,
+      "esModuleInterop": true,
+      "allowJs": true,
+      "noEmit": true
+  },
+  "include": [
+      "src/**/*"
+  ],
+  "exclude": [
+      "node_modules",
+      "dist",
+      "src/**/*.spec.tsx"
+  ]
+}

@@ -1,8 +1,6 @@
-/* TEST COMMENT */
-
-import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef } from 'react';
-import { loadYoga } from 'yoga-layout/load';
-import applyLayoutProperties from './applyLayoutProperties';
+import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode, useMemo } from 'react';
+import { loadYoga, MeasureFunction, Node } from 'yoga-layout/load';
+import applyLayoutProperties, { Style, useShallowMemo } from './applyLayoutProperties';
 import { useApplication } from '@pixi/react';
 
 let LAYOUT_ID = 0;
@@ -11,7 +9,23 @@ let Yoga = null;
 export const LayoutIndexContext = createContext(null);
 export const LayoutNodeContext = createContext(null);
 
-function createNodeContext () {
+export type OnLayoutFunction = (x: number, y: number, width: number, height: number) => void;
+
+export type NodeContext = {
+  childMap: Record<string, NodeContext>,
+  node: Node,
+  needsReindex: boolean,
+  cachedLayout: { top: number, left: number, width: number, height: number },
+  index: number,
+  style: Style | null,
+  onLayout: OnLayoutFunction | null,
+  measure: MeasureFunction | null,
+  registerChildContext: (key: string, childContext: NodeContext) => NodeContext,
+  unregisterChildContext: (key: string) => void,
+  applyLayoutProperties: (style: Style) => void
+};
+
+function createNodeContext (): NodeContext  {
 
   const context = {
 
@@ -24,7 +38,7 @@ function createNodeContext () {
     onLayout: null,
     measure: null,
 
-    registerChildContext (key, childContext) {
+    registerChildContext (key: string, childContext: NodeContext) {
 
       if (context.childMap[key]) {
         throw new Error(`Child with key "${ key }" already registered`);
@@ -35,12 +49,16 @@ function createNodeContext () {
       return context;
     },
 
-    unregisterChildContext (key) {
+    unregisterChildContext (key: string) {
       const { node } = context.childMap[key];
       const parent = node.getParent();
       parent?.removeChild(node);
       delete context.childMap[key];
       context.needsReindex = true;
+    },
+
+    applyLayoutProperties (style: Style) {
+      applyLayoutProperties(context.node, context.style, style, context.style);
     }
 
   };
@@ -57,9 +75,16 @@ export function LayoutChildren ({ children }) {
   ) : child);
 }
 
-const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props, ref) {
+export type LayoutProps = {
+  measure?: MeasureFunction,
+  onLayout?: OnLayoutFunction,
+  style?: Style,
+  children?: ReactNode
+};
 
-  const { measure = null, onLayout, style } = props;
+const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: LayoutProps, ref) {
+
+  const { measure = null, onLayout = null, style } = props;
 
   const index = useContext(LayoutIndexContext);
   const parent = useContext(LayoutNodeContext);
@@ -80,6 +105,8 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props, ref) {
     nodeContext.current.measure = measure;
 
   }
+
+  const memoStyle = useShallowMemo(style) as Style;
 
   const keyRef = useRef(null);
 
@@ -102,14 +129,14 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props, ref) {
     const c = nodeContext.current;
     c.index = index;
 
-    applyLayoutProperties(c.node, c.style, style);
-    c.style = style;
+    applyLayoutProperties(c.node, c.style, memoStyle);
+    c.style = memoStyle;
 
     if (parent) {
       parent.needsReindex = true;
     }
 
-  }, [ parent, index, style ]);
+  }, [ parent, index, memoStyle ]);
 
   // Reorder any changed indexes
 
@@ -193,7 +220,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props, ref) {
 
 });
 
-function notifyOnLayout (context) {
+function notifyOnLayout (context: NodeContext) {
 
   const { cachedLayout, node, onLayout } = context;
   const hasNewLayout = node.hasNewLayout();
@@ -219,7 +246,7 @@ function notifyOnLayout (context) {
 
 }
 
-function notifyOnLayoutRecursive (context) {
+function notifyOnLayoutRecursive (context: NodeContext) {
 
   const hasNewLayout = notifyOnLayout(context);
 

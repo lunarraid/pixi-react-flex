@@ -1,6 +1,6 @@
 {
   "name": "@lunarraid/pixi-react-flex",
-  "version": "8.0.0-dev.1",
+  "version": "8.0.0-dev.2",
   "description": "Flexbox components for @pixi/react",
   "author": "lunarraid",
   "license": "MIT",
@@ -8,36 +8,52 @@
     "type": "git",
     "url": "git+https://github.com/lunarraid/pixi-react-flex.git"
   },
-  "main": "dist/cjs/index.js",
-  "module": "dist/esm/index.js",
+"exports": {
+    ".": {
+      "import": "./dist/index.es.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./react-spring": {
+      "import": "./dist/react-spring/index.es.js",
+      "require": "./dist/react-spring/index.js",
+      "types": "./dist/react-spring/index.d.ts"
+    }
+  },
   "scripts": {
-    "test": "CI=1 react-scripts test --env=jsdom",
     "build": "rollup -c",
     "start": "rollup -c -w",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "yoga-layout": "^3.1.0"
+    "yoga-layout": "^3.1.0",
+    "@react-spring/animated": "^10.0.3",
+    "@react-spring/core": "^10.0.3",
+    "@react-spring/types": "^10.0.3"
   },
   "peerDependencies": {
-    "@pixi/react": "^8.0.0-beta.7",
+    "@pixi/react": "^8.0.0",
     "pixi.js": "^8.2.6",
-    "react": ">=18.0.0"
+    "react": ">=19.0.0"
   },
   "devDependencies": {
-    "rollup-plugin-peer-deps-external": "^2.2.4",
     "@babel/core": "^7.21.4",
     "@babel/plugin-transform-runtime": "^7.21.4",
     "@babel/preset-env": "^7.21.4",
     "@babel/preset-react": "^7.18.6",
-    "@pixi/react": "^8.0.0-beta.7",
+    "@pixi/react": "^8.0.3",
     "@rollup/plugin-babel": "^6.0.3",
     "@rollup/plugin-commonjs": "^24.1.0",
-    "@rollup/plugin-node-resolve": "^15.0.2",
-    "pixi.js": "8.2.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "rollup": "^3.20.2"
+    "@rollup/plugin-node-resolve": "^15.3.1",
+    "pixi.js": "^8.2.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "rollup": "^3.29.5",
+    "rollup-plugin-peer-deps-external": "^2.2.4",
+    "rollup-plugin-typescript2": "^0.36.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   },
   "files": [
     "dist"

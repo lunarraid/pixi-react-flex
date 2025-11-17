@@ -1,11 +1,13 @@
 import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { extend } from '@pixi/react';
+import { extend, PixiReactElementProps } from '@pixi/react';
 import { Graphics, Rectangle } from 'pixi.js';
-import { LayoutNode } from '../flex/Layout.jsx';
+import { LayoutNode, LayoutProps } from '../flex/Layout.js';
 
 extend({ Graphics });
 
-const FlexGraphics = forwardRef(function FlexGraphics (props, ref) {
+export type GraphicsProps = PixiReactElementProps<typeof Graphics> & LayoutProps;
+
+const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref) {
 
   if (props.children) {
     throw new Error('Only containers allow children');
@@ -14,7 +16,7 @@ const FlexGraphics = forwardRef(function FlexGraphics (props, ref) {
   const layoutRef = useRef(null);
   const viewRef = useRef(null);
 
-  useImperativeHandle(ref, () => viewRef.current, []);
+  useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
   const { onLayout } = props;
 
@@ -28,7 +30,7 @@ const FlexGraphics = forwardRef(function FlexGraphics (props, ref) {
     return () => context.off('update', onUpdate);
   }, []);
 
-  const setLayout = useCallback((x, y, width, height) => {
+  const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
     const view = viewRef.current;
     view.boundsArea ||= new Rectangle();
     view.boundsArea.width = width;
@@ -49,5 +51,7 @@ const FlexGraphics = forwardRef(function FlexGraphics (props, ref) {
   );
 
 });
+
+FlexGraphics.displayName = 'Graphics';
 
 export default FlexGraphics;

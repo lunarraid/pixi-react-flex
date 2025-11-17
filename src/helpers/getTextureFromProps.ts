@@ -1,8 +1,9 @@
 import { Texture } from 'pixi.js';
+import { Style } from '../flex/applyLayoutProperties';
 
-export default function getTextureFromProps (props) {
+export default function getTextureFromProps (props: { texture?: Texture; image?: string, style?: Style; }) {
 
-  let texture;
+  let texture: Texture;
 
   if (props.texture) {
     texture = props.texture;

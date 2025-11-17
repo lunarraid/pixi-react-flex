@@ -1,7 +1,8 @@
 import { BitmapFontManager, BitmapText, CanvasTextMetrics, HTMLText, HTMLTextStyle, measureHtmlText, Text, TextStyle } from 'pixi.js';
-import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
-import { extend } from '@pixi/react';
-import { LayoutNode } from '../flex/Layout.jsx';
+import { forwardRef, RefObject, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { extend, PixiReactElementProps } from '@pixi/react';
+import { LayoutNode, LayoutProps } from '../flex/Layout.js';
+import { Style } from '../flex/applyLayoutProperties.js';
 
 extend({ BitmapText, HTMLText, Text });
 
@@ -9,9 +10,17 @@ const textStyleKeys = Object.keys(TextStyle.defaultTextStyle);
 
 textStyleKeys.push('cssOverrides', 'tagStyles');
 
-const NO_STYLE = {};
+export type AbstractTextStyle = Style & Partial<HTMLTextStyle>;
 
-const AbstractText = forwardRef(function AbstractText (props, ref) {
+const NO_STYLE = {} as AbstractTextStyle;
+
+export type AbstractTextProps = PixiReactElementProps & LayoutProps & {
+  View?: 'pixiText' | 'pixiBitmapText' | 'pixiHtmlText',
+  text?: string,
+  style?: AbstractTextStyle
+};
+
+const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps, ref) {
 
   if (props.children) {
     throw new Error('Only containers allow children');
@@ -19,16 +28,16 @@ const AbstractText = forwardRef(function AbstractText (props, ref) {
 
   const dts = TextStyle.defaultTextStyle;
 
-  const viewRef = useRef(null);
+  const viewRef: RefObject<any> = useRef(null);
   const layoutRef = useRef(null);
-  const textStyleRef = useRef(null);
+  const textStyleRef: RefObject<TextStyle | HTMLTextStyle> = useRef(null);
 
   useImperativeHandle(ref, () => viewRef.current, []);
 
-  const { View = 'text', onLayout, style = NO_STYLE, text } = props;
+  const { View = 'pixiText', onLayout, style = NO_STYLE, text } = props;
 
   if (!textStyleRef.current) {
-    textStyleRef.current = View === 'pixiHTMLText' ? new HTMLTextStyle() : new TextStyle();
+    textStyleRef.current = View === 'pixiHtmlText' ? new HTMLTextStyle() : new TextStyle();
   }
 
   const hasManualWordWrapWidth = style?.wordWrapWidth !== undefined;
@@ -53,7 +62,7 @@ const AbstractText = forwardRef(function AbstractText (props, ref) {
     layoutRef.current.node.markDirty();
   }, [ styleKey, text ]);
 
-  const measure = useCallback((layoutWidth) => {
+  const measure = useCallback((layoutWidth: number) => {
 
     const currentTextStyle = textStyleRef.current;
 
@@ -63,19 +72,19 @@ const AbstractText = forwardRef(function AbstractText (props, ref) {
 
     switch (View) {
 
-      case 'bitmapText':
+      case 'pixiBitmapText':
       {
         const { width, height, scale } = BitmapFontManager.measureText(text, currentTextStyle);
         return { width: width * scale, height: height * scale };
       }
 
-      case 'pixiHTMLText':
+      case 'pixiHtmlText':
       {
-        const { width, height } = measureHtmlText(text, currentTextStyle);
+        const { width, height } = measureHtmlText(text, currentTextStyle as HTMLTextStyle);
         return { width, height };
       }
 
-      case 'text':
+      case 'pixiText':
       {
         const { width, height } = CanvasTextMetrics.measureText(text, currentTextStyle);
         return { width, height };
@@ -87,7 +96,7 @@ const AbstractText = forwardRef(function AbstractText (props, ref) {
 
   }, [ View, hasManualWordWrapWidth, text ]);
 
-  const setLayout = useCallback((x, y, width, height) => {
+  const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
 
     const b = viewRef.current;
 
@@ -103,6 +112,7 @@ const AbstractText = forwardRef(function AbstractText (props, ref) {
 
   return (
     <LayoutNode measure={ measure } ref={ layoutRef } style={ props.style } onLayout={ setLayout }>
+      {/* @ts-ignore */}
       <View ref={ viewRef } { ...props } style={ textStyleRef.current } />
     </LayoutNode>
   );

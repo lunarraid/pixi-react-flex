@@ -1,12 +1,14 @@
 import { NineSliceSprite } from 'pixi.js';
-import { extend } from '@pixi/react';
+import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useLayoutEffect, useImperativeHandle, useRef } from 'react';
-import { LayoutNode } from '../flex/Layout.jsx';
-import getTextureFromProps from '../helpers/getTextureFromProps';
+import { LayoutNode, LayoutProps } from '../flex/Layout.js';
+import getTextureFromProps from '../helpers/getTextureFromProps.js';
 
 extend({ NineSliceSprite });
 
-const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props, ref) {
+export type NineSliceSpriteProps = PixiReactElementProps<typeof NineSliceSprite> & LayoutProps;
+
+const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: NineSliceSpriteProps, ref) {
 
   if (props.children) {
     throw new Error('Only containers allow children');
@@ -18,7 +20,7 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props, ref)
 
   const { onLayout, style = {} } = props;
 
-  const setLayout = useCallback((x, y, width, height) => {
+  const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
     const view = viewRef.current;
     view.position.set(x, y);
     view.width = width;
