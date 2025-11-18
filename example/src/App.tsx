@@ -28,7 +28,7 @@ function TestAnimation() {
 export default function App () {
   return (
     <Application>
-      <Container>
+      <Container style={{ flexDirection: 'row' }}>
         <Graphics draw={ draw } />
         <TestAnimation />
       </Container>

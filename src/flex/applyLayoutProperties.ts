@@ -144,7 +144,7 @@ export function pickStyle (value: any): LayoutStyle {
   return result;
 }
 
-export enum StrAlign {
+enum EnumAlign {
   Auto = 'auto',
   FlexStart = 'flex-start',
   Center = 'center',
@@ -155,44 +155,50 @@ export enum StrAlign {
   SpaceAround = 'space-around'
 };
 
-export const alignEnumMapping = {
-  [StrAlign.Auto]: Align.Auto,
-  [StrAlign.FlexStart]: Align.FlexStart,
-  [StrAlign.Center]: Align.Center,
-  [StrAlign.FlexEnd]: Align.FlexEnd,
-  [StrAlign.Stretch]: Align.Stretch,
-  [StrAlign.Baseline]: Align.Baseline,
-  [StrAlign.SpaceBetween]: Align.SpaceBetween,
-  [StrAlign.SpaceAround]: Align.SpaceAround
+export type StrAlign = `${ EnumAlign }`;
+
+const alignEnumMapping = {
+  [EnumAlign.Auto]: Align.Auto,
+  [EnumAlign.FlexStart]: Align.FlexStart,
+  [EnumAlign.Center]: Align.Center,
+  [EnumAlign.FlexEnd]: Align.FlexEnd,
+  [EnumAlign.Stretch]: Align.Stretch,
+  [EnumAlign.Baseline]: Align.Baseline,
+  [EnumAlign.SpaceBetween]: Align.SpaceBetween,
+  [EnumAlign.SpaceAround]: Align.SpaceAround
 };
 
-export enum StrFlexDirection {
+export enum EnumFlexDirection {
   Column = 'column',
   ColumnReverse = 'column-reverse',
   Row = 'row',
   RowReverse = 'row-reverse'
 }
 
-export const flexDirectionEnumMapping = {
-  [StrFlexDirection.Column]: FlexDirection.Column,
-  [StrFlexDirection.ColumnReverse]: FlexDirection.ColumnReverse,
-  [StrFlexDirection.Row]: FlexDirection.Row,
-  [StrFlexDirection.RowReverse]: FlexDirection.RowReverse
+export type StrFlexDirection = `${ EnumFlexDirection }`;
+
+const flexDirectionEnumMapping = {
+  [EnumFlexDirection.Column]: FlexDirection.Column,
+  [EnumFlexDirection.ColumnReverse]: FlexDirection.ColumnReverse,
+  [EnumFlexDirection.Row]: FlexDirection.Row,
+  [EnumFlexDirection.RowReverse]: FlexDirection.RowReverse
 };
 
-export enum StrWrap {
+enum EnumWrap {
   NoWrap = 'no-wrap',
   Wrap = 'wrap',
   WrapReverse = 'wrap-reverse'
 }
 
-export const flexWrapEnumMapping = {
-  [StrWrap.NoWrap]: Wrap.NoWrap,
-  [StrWrap.Wrap]: Wrap.Wrap,
-  [StrWrap.WrapReverse]: Wrap.WrapReverse
+export type StrWrap = `${ EnumWrap }`;
+
+const flexWrapEnumMapping = {
+  [EnumWrap.NoWrap]: Wrap.NoWrap,
+  [EnumWrap.Wrap]: Wrap.Wrap,
+  [EnumWrap.WrapReverse]: Wrap.WrapReverse
 };
 
-export enum StrJustify {
+enum EnumJustify {
   FlexStart = 'flex-start',
   Center = 'center',
   FlexEnd = 'flex-end',
@@ -201,47 +207,55 @@ export enum StrJustify {
   SpaceEvenly = 'space-evenly'
 }
 
-export const justifyContentEnumMapping = {
-  [StrJustify.FlexStart]: Justify.FlexStart,
-  [StrJustify.Center]: Justify.Center,
-  [StrJustify.FlexEnd]: Justify.FlexEnd,
-  [StrJustify.SpaceBetween]: Justify.SpaceBetween,
-  [StrJustify.SpaceAround]: Justify.SpaceAround,
-  [StrJustify.SpaceEvenly]: Justify.SpaceEvenly
+export type StrJustify = `${ EnumJustify }`;
+
+const justifyContentEnumMapping = {
+  [EnumJustify.FlexStart]: Justify.FlexStart,
+  [EnumJustify.Center]: Justify.Center,
+  [EnumJustify.FlexEnd]: Justify.FlexEnd,
+  [EnumJustify.SpaceBetween]: Justify.SpaceBetween,
+  [EnumJustify.SpaceAround]: Justify.SpaceAround,
+  [EnumJustify.SpaceEvenly]: Justify.SpaceEvenly
 };
 
-export enum StrOverflow {
+enum EnumOverflow {
   Visible = 'visible',
   Hidden = 'hidden',
   Scroll = 'scroll'
 }
 
-export const overflowEnumMapping = {
-  [StrOverflow.Visible]: Overflow.Visible,
-  [StrOverflow.Hidden]: Overflow.Hidden,
-  [StrOverflow.Scroll]: Overflow.Scroll
+export type StrOverflow = `${ EnumOverflow }`;
+
+const overflowEnumMapping = {
+  [EnumOverflow.Visible]: Overflow.Visible,
+  [EnumOverflow.Hidden]: Overflow.Hidden,
+  [EnumOverflow.Scroll]: Overflow.Scroll
 };
 
-export enum StrDisplay {
+enum EnumDisplay {
   Flex = 'flex',
   None = 'none'
 }
 
-export const displayEnumMapping = {
-  [StrDisplay.Flex]: Display.Flex,
-  [StrDisplay.None]: Display.None
+export type StrDisplay = `${ EnumDisplay }`;
+
+const displayEnumMapping = {
+  [EnumDisplay.Flex]: Display.Flex,
+  [EnumDisplay.None]: Display.None
 };
 
-export enum StrPositionType {
+enum EnumPositionType {
   Relative = 'relative',
   Absolute = 'absolute',
   Static = 'static'
 }
 
-export const positionTypeEnumMapping = {
-  [StrPositionType.Relative]: PositionType.Relative,
-  [StrPositionType.Absolute]: PositionType.Absolute,
-  [StrPositionType.Static]: PositionType.Static
+export type StrPositionType = `${ EnumPositionType }`;
+
+const positionTypeEnumMapping = {
+  [EnumPositionType.Relative]: PositionType.Relative,
+  [EnumPositionType.Absolute]: PositionType.Absolute,
+  [EnumPositionType.Static]: PositionType.Static
 };
 
 const setterMap = {
