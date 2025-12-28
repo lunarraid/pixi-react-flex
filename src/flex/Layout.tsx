@@ -57,8 +57,8 @@ function createNodeContext (): NodeContext  {
       context.needsReindex = true;
     },
 
-    applyLayoutProperties (style: Style) {
-      applyLayoutProperties(context.node, context.style, style, context.style);
+    applyLayoutProperties (style: Style): boolean {
+      return applyLayoutProperties(context.node, context.style, style, context.style);
     }
 
   };

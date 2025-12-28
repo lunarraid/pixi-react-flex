@@ -35,4 +35,6 @@ const FlexTilingSprite = forwardRef(function FlexTilingSprite (props: TilingSpri
 
 });
 
+FlexTilingSprite.displayName = 'TilingSprite';
+
 export default FlexTilingSprite;

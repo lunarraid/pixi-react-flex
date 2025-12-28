@@ -18,7 +18,7 @@ const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
   const layoutRef = useRef(null);
   const viewRef = useRef(null);
 
-  useImperativeHandle(ref, () => viewRef.current, []);
+  useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
   const texture = getTextureFromProps(props);
 
@@ -77,5 +77,7 @@ const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
   );
 
 });
+
+FlexSprite.displayName = 'Sprite';
 
 export default FlexSprite;

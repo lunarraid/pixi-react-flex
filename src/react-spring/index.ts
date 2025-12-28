@@ -18,16 +18,14 @@ const host = createHost(PRIMITIVES, {
 
   applyAnimatedValues (node: any, props: Lookup) {
     const { style, ...restProps } = props;
-    const propsDidChange = applyProps(node.view, restProps);
+    applyProps(node.view, restProps);
 
     const layoutStyle = pickStyle(props);
-    const styleDidChange = node.layout.applyLayoutProperties(layoutStyle);
+    node.layout.applyLayoutProperties(layoutStyle);
 
-    if (styleDidChange || propsDidChange) {
-      return true;
-    }
-
-    return;
+    // TODO: Make a way to determine if props actuallt changed here instead
+    // of returning true all the time
+    return true;
   }
 
 });

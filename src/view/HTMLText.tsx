@@ -1,10 +1,12 @@
 import { forwardRef } from 'react';
-import AbstractText from './AbstractText.js';
+import AbstractText, { AbstractTextProps } from './AbstractText';
 
-const FlexHTMLText = forwardRef(function FlexHTMLText (props, ref) {
+const FlexHTMLText = forwardRef(function FlexHTMLText (props: AbstractTextProps, ref) {
   return (
     <AbstractText { ...props } ref={ ref } View="pixiHtmlText" />
   );
 });
+
+FlexHTMLText.displayName = 'HTMLText';
 
 export default FlexHTMLText;

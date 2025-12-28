@@ -32,7 +32,7 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
   const layoutRef = useRef(null);
   const textStyleRef: RefObject<TextStyle | HTMLTextStyle> = useRef(null);
 
-  useImperativeHandle(ref, () => viewRef.current, []);
+  useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
   const { View = 'pixiText', onLayout, style = NO_STYLE, text } = props;
 

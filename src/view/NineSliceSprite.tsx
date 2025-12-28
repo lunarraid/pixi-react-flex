@@ -15,8 +15,9 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
   }
 
   const viewRef = useRef(null);
+  const layoutRef = useRef(null);
 
-  useImperativeHandle(ref, () => viewRef.current, []);
+  useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
   const { onLayout, style = {} } = props;
 
@@ -64,11 +65,13 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
   }, [ texture, bottomHeight, rightWidth, topHeight, leftWidth ]);
 
   return (
-    <LayoutNode style={ props.style } onLayout={ setLayout }>
+    <LayoutNode ref={ layoutRef } style={ props.style } onLayout={ setLayout }>
       <pixiNineSliceSprite { ...props } ref={ viewRef } texture={ texture } />
     </LayoutNode>
   );
 
 });
+
+FlexNineSliceSprite.displayName = 'NineSliceSprite';
 
 export default FlexNineSliceSprite;
