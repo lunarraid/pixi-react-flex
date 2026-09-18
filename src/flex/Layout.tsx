@@ -1,5 +1,5 @@
 import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode } from 'react';
-import { loadYoga, MeasureFunction, Node } from 'yoga-layout/load';
+import { Errata, loadYoga, type Config, type MeasureFunction, type Node } from 'yoga-layout/load';
 import applyLayoutProperties, { Style, useShallowMemo } from './applyLayoutProperties';
 import { useApplication } from '@pixi/react';
 
@@ -10,6 +10,56 @@ let Yoga: Awaited<ReturnType<typeof loadYoga>> = null!;
 
 export const LayoutIndexContext = createContext<number | null>(null);
 export const LayoutNodeContext = createContext<NodeContext | null>(null);
+
+/** Yoga quirks to reproduce; see yoga's `Errata`. `classic` is the behaviour of Yoga 1.x (and typeflex). */
+export type LayoutErrata = 'none' | 'classic' | 'all' | 'stretch-flex-basis'
+  | 'absolute-positioning-incorrect' | 'absolute-percent-against-inner-size';
+
+export type LayoutConfigOptions = {
+  /** Defaults to `none`: spec-conformant layout. */
+  errata?: LayoutErrata,
+  /** Layout values are rounded to 1 / pointScaleFactor. Defaults to 1; 0 disables rounding. */
+  pointScaleFactor?: number,
+  /** Web defaults: row direction, shrinking flex items, stretched content. Defaults to false. */
+  useWebDefaults?: boolean
+};
+
+/**
+ * Yoga configuration for every layout node created below the provider. Nodes read it once, when they are created,
+ * so provide it above the layout root and keep the options object stable.
+ */
+export const LayoutConfigContext = createContext<LayoutConfigOptions | null>(null);
+
+const ERRATA: Record<LayoutErrata, Errata> = {
+  'none': Errata.None,
+  'classic': Errata.Classic,
+  'all': Errata.All,
+  'stretch-flex-basis': Errata.StretchFlexBasis,
+  'absolute-positioning-incorrect': Errata.AbsolutePositioningIncorrect,
+  'absolute-percent-against-inner-size': Errata.AbsolutePercentAgainstInnerSize
+};
+
+// Yoga configs are shared by the nodes that use them, so one is kept per options object for the page's lifetime.
+const configs = new WeakMap<LayoutConfigOptions, Config>();
+
+function getConfig (options: LayoutConfigOptions | null): Config | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  let config = configs.get(options);
+
+  if (!config) {
+    const { errata = 'none', pointScaleFactor = 1, useWebDefaults = false } = options;
+    config = Yoga.Config.create();
+    config.setErrata(ERRATA[errata]);
+    config.setPointScaleFactor(pointScaleFactor);
+    config.setUseWebDefaults(useWebDefaults);
+    configs.set(options, config);
+  }
+
+  return config;
+}
 
 export type OnLayoutFunction = (x: number, y: number, width: number, height: number) => void;
 
@@ -27,12 +77,12 @@ export type NodeContext = {
   applyLayoutProperties: (style: Style) => void
 };
 
-function createNodeContext (): NodeContext  {
+function createNodeContext (config: Config | undefined): NodeContext  {
 
   const context: NodeContext = {
 
     childMap: {},
-    node: Yoga.Node.create(),
+    node: Yoga.Node.create(config),
     needsReindex: false,
     cachedLayout: { top: 0, left: 0, width: -1, height: -1 },
     index: -1,
@@ -90,10 +140,11 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   const index = useContext(LayoutIndexContext);
   const parent = useContext(LayoutNodeContext);
+  const configOptions = useContext(LayoutConfigContext);
 
   const nodeContext = useRef<NodeContext>(null!);
 
-  nodeContext.current ||= createNodeContext();
+  nodeContext.current ||= createNodeContext(getConfig(configOptions));
   nodeContext.current.onLayout = onLayout;
 
   useImperativeHandle(ref, () => nodeContext.current, []);

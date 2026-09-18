@@ -1,4 +1,7 @@
 import {
+  LayoutConfigContext,
+  type LayoutConfigOptions,
+  type LayoutErrata,
   LayoutIndexContext,
   LayoutNodeContext,
   LayoutChildren,
@@ -27,6 +30,9 @@ export {
   Text,
   TilingSprite,
   getTextureFromProps,
+  LayoutConfigContext,
+  LayoutConfigOptions,
+  LayoutErrata,
   LayoutIndexContext,
   LayoutNodeContext,
   LayoutChildren,
