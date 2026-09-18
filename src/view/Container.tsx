@@ -1,20 +1,22 @@
 import { Container, Rectangle } from 'pixi.js';
 import { extend, PixiReactElementProps } from '@pixi/react';
-import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useRef, type ForwardRefExoticComponent, type Ref } from 'react';
 import { LayoutNode, LayoutChildren, LayoutProps, NodeContext } from '../flex/Layout';
 
 extend({ Container });
 
 export type ContainerProps = PixiReactElementProps<typeof Container> & LayoutProps;
 
-const FlexContainer = forwardRef(function FlexContainer (props: ContainerProps, ref) {
+export type ContainerRef = { view: Container, layout: NodeContext };
 
-  const viewRef = useRef<Container>(null);
-  const layoutRef = useRef<NodeContext>(null);
+const FlexContainer: ForwardRefExoticComponent<ContainerProps & { ref?: Ref<ContainerRef> }> = forwardRef<ContainerRef, ContainerProps>(function FlexContainer (props, ref) {
+
+  const viewRef = useRef<Container>(null!);
+  const layoutRef = useRef<NodeContext>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
-  const { onLayout } = props;
+  const { style, onLayout, measure: _measure, children, ...pixiProps } = props;
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
     const c = viewRef.current;
@@ -26,10 +28,10 @@ const FlexContainer = forwardRef(function FlexContainer (props: ContainerProps, 
   }, [ onLayout ]);
 
   return (
-    <LayoutNode style={ props.style } onLayout={ setLayout } ref={ layoutRef }>
-      <pixiContainer { ...props } ref={ viewRef }>
+    <LayoutNode style={ style } onLayout={ setLayout } ref={ layoutRef }>
+      <pixiContainer { ...pixiProps } ref={ viewRef }>
         <LayoutChildren>
-          { props.children }
+          { children }
         </LayoutChildren>
       </pixiContainer>
     </LayoutNode>

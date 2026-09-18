@@ -30,7 +30,7 @@ import { Align,
  * DEALINGS IN THE SOFTWARE.
  **/
 
-export const defaultValues = {
+export const defaultValues: Record<string, string | number> = {
   left: NaN,
   right: NaN,
   top: NaN,
@@ -129,19 +129,25 @@ export type LayoutStyle = {
 };
 
 export type Style = LayoutStyle & {
-  [key: string]: any
+  [key: string]: unknown
 };
 
-export function pickStyle (value: any): LayoutStyle {
-  const result = {} as LayoutStyle;
+export function pickStyle (value: unknown): LayoutStyle {
+  const result: Record<string, unknown> = {};
 
-  for (const key in value) {
+  if (typeof value !== 'object' || value === null) {
+    return result as LayoutStyle;
+  }
+
+  const source = value as Record<string, unknown>;
+
+  for (const key in source) {
     if (defaultValues.hasOwnProperty(key)) {
-      result[key] = value[key];
+      result[key] = source[key];
     }
   }
 
-  return result;
+  return result as LayoutStyle;
 }
 
 enum EnumAlign {
@@ -258,7 +264,7 @@ const positionTypeEnumMapping = {
   [EnumPositionType.Static]: PositionType.Static
 };
 
-const setterMap = {
+const setterMap: Record<string, (node: Node, value: never) => void> = {
 
   alignContent (node: Node, value: StrAlign) {
     node.setAlignContent(alignEnumMapping[value]);
@@ -363,7 +369,7 @@ const setterMap = {
   },
 
 
-  overflow (node: Node, value: number | 'auto' | `${number}%` | undefined) {
+  overflow (node: Node, value: StrOverflow) {
     node.setOverflow(overflowEnumMapping[value]);
   },
 
@@ -554,7 +560,7 @@ const setterMap = {
 
 };
 
-export function isShallowEqual (props1: any, props2: any): boolean {
+export function isShallowEqual (props1: Record<string, unknown> | null | undefined, props2: Record<string, unknown> | null | undefined): boolean {
 
   if (props1 === props2) {
     return true;
@@ -579,7 +585,7 @@ export function isShallowEqual (props1: any, props2: any): boolean {
   return true;
 }
 
-export function useShallowMemo (value: any) {
+export function useShallowMemo<T extends Record<string, unknown> | null | undefined> (value: T): T {
   const memoizedValueRef = useRef(value);
 
   const isEqual = isShallowEqual(value, memoizedValueRef.current);
@@ -591,7 +597,12 @@ export function useShallowMemo (value: any) {
   return memoizedValueRef.current;
 };
 
-export default function applyLayoutProperties (node: Node, oldProps: object, newProps: object, defaults: object | null = null) {
+export default function applyLayoutProperties (
+  node: Node,
+  oldProps: Record<string, unknown> | null | undefined,
+  newProps: Record<string, unknown>,
+  defaults: Record<string, unknown> | null = null
+) {
   if (isShallowEqual(oldProps, newProps)) {
     return false;
   }
@@ -605,7 +616,7 @@ export default function applyLayoutProperties (node: Node, oldProps: object, new
         ? defaults[propName]
         : defaultValues[propName];
 
-      propSetter(node, value);
+      propSetter(node, value as never);
     }
   }
 
@@ -613,7 +624,7 @@ export default function applyLayoutProperties (node: Node, oldProps: object, new
     const propSetter = setterMap[propName];
 
     if (propSetter) {
-      propSetter(node, newProps[propName]);
+      propSetter(node, newProps[propName] as never);
     }
   }
 

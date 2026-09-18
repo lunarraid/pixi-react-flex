@@ -1,22 +1,29 @@
 import { TilingSprite } from 'pixi.js';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
-import { LayoutNode, LayoutProps } from '../flex/Layout.js';
-import getTextureFromProps from '../helpers/getTextureFromProps.js';
+import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import getTextureFromProps from '../helpers/getTextureFromProps';
 
 extend({ TilingSprite });
 
-export type TilingSpriteProps = PixiReactElementProps & LayoutProps;
+export type TilingSpriteProps = PixiReactElementProps<typeof TilingSprite> & LayoutProps;
 
 const FlexTilingSprite = forwardRef(function FlexTilingSprite (props: TilingSpriteProps, ref) {
 
-  const viewRef = useRef(null);
+  const viewRef = useRef<TilingSprite>(null!);
+  const layoutRef = useRef<NodeContext>(null!);
 
-  useImperativeHandle(ref, () => viewRef.current, []);
+  useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
   const texture = getTextureFromProps(props);
 
-  const { onLayout } = props;
+  const {
+    style,
+    onLayout,
+    measure: _measure,
+    image: _image,
+    ...pixiProps
+  } = props as TilingSpriteProps & { image?: string };
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
     const view = viewRef.current;
@@ -27,9 +34,9 @@ const FlexTilingSprite = forwardRef(function FlexTilingSprite (props: TilingSpri
   }, [ onLayout ]);
 
   return (
-    <LayoutNode style={ props.style } onLayout={ setLayout }>
+    <LayoutNode ref={ layoutRef } style={ style } onLayout={ setLayout }>
       {/* @ts-ignore */}
-      <pixiTilingSprite { ...props } ref={ viewRef } texture={ texture } />
+      <pixiTilingSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
     </LayoutNode>
   );
 

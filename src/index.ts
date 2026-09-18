@@ -3,18 +3,18 @@ import {
   LayoutNodeContext,
   LayoutChildren,
   LayoutNode
-}  from './flex/Layout.jsx';
+}  from './flex/Layout';
 
-import applyLayoutProperties, { type LayoutStyle, type Style, pickStyle } from './flex/applyLayoutProperties.js';
-import BitmapText from './view/BitmapText.jsx';
-import Container from './view/Container.jsx';
-import Graphics from './view/Graphics.jsx';
-import HTMLText from './view/HTMLText.jsx';
-import NineSliceSprite from './view/NineSliceSprite.jsx';
-import Sprite from './view/Sprite.jsx';
-import Text from './view/Text.jsx';
-import TilingSprite from './view/TilingSprite.jsx';
-import getTextureFromProps from './helpers/getTextureFromProps.js';
+import applyLayoutProperties, { type LayoutStyle, type Style, pickStyle } from './flex/applyLayoutProperties';
+import BitmapText from './view/BitmapText';
+import Container from './view/Container';
+import Graphics from './view/Graphics';
+import HTMLText from './view/HTMLText';
+import NineSliceSprite from './view/NineSliceSprite';
+import Sprite from './view/Sprite';
+import Text from './view/Text';
+import TilingSprite from './view/TilingSprite';
+import getTextureFromProps from './helpers/getTextureFromProps';
 
 export {
   applyLayoutProperties,

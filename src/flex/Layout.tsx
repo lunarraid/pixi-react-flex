@@ -1,13 +1,15 @@
-import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode, useMemo } from 'react';
+import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode } from 'react';
 import { loadYoga, MeasureFunction, Node } from 'yoga-layout/load';
 import applyLayoutProperties, { Style, useShallowMemo } from './applyLayoutProperties';
 import { useApplication } from '@pixi/react';
 
-let LAYOUT_ID = 0;
-let Yoga = null;
+type YogaNodeWithAlias = Node & { isAliasOf(other: Node): boolean };
 
-export const LayoutIndexContext = createContext(null);
-export const LayoutNodeContext = createContext(null);
+let LAYOUT_ID = 0;
+let Yoga: Awaited<ReturnType<typeof loadYoga>> = null!;
+
+export const LayoutIndexContext = createContext<number | null>(null);
+export const LayoutNodeContext = createContext<NodeContext | null>(null);
 
 export type OnLayoutFunction = (x: number, y: number, width: number, height: number) => void;
 
@@ -27,7 +29,7 @@ export type NodeContext = {
 
 function createNodeContext (): NodeContext  {
 
-  const context = {
+  const context: NodeContext = {
 
     childMap: {},
     node: Yoga.Node.create(),
@@ -67,7 +69,7 @@ function createNodeContext (): NodeContext  {
 
 }
 
-export function LayoutChildren ({ children }) {
+export function LayoutChildren ({ children }: { children?: ReactNode }) {
   return Children.map(children, (child, index) => child ? (
     <LayoutIndexContext.Provider value={ index }>
       { child }
@@ -89,7 +91,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
   const index = useContext(LayoutIndexContext);
   const parent = useContext(LayoutNodeContext);
 
-  let nodeContext = useRef(null);
+  const nodeContext = useRef<NodeContext>(null!);
 
   nodeContext.current ||= createNodeContext();
   nodeContext.current.onLayout = onLayout;
@@ -108,7 +110,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   const memoStyle = useShallowMemo(style) as Style;
 
-  const keyRef = useRef(null);
+  const keyRef = useRef<string | null>(null);
 
   if (!keyRef.current) {
     keyRef.current = `Layout${ LAYOUT_ID++ }`;
@@ -116,7 +118,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   useLayoutEffect(() => {
 
-    const key = keyRef.current;
+    const key = keyRef.current!;
     parent?.registerChildContext(key, nodeContext.current);
 
     return () => {
@@ -127,7 +129,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   useLayoutEffect(() => {
     const c = nodeContext.current;
-    c.index = index;
+    c.index = index ?? -1;
 
     applyLayoutProperties(c.node, c.style, memoStyle);
     c.style = memoStyle;
@@ -152,7 +154,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
         .forEach((key, index) => {
           const child = childMap[key].node;
 
-          if (index >= childCount || !node.getChild(index).isAliasOf(child)) {
+          if (index >= childCount || !(node.getChild(index) as YogaNodeWithAlias).isAliasOf(child)) {
             child.getParent()?.removeChild(child);
             node.insertChild(child, index);
           }
@@ -163,7 +165,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
     }
 
     if (!parent && node.isDirty()) {
-      node.calculateLayout();
+      node.calculateLayout(undefined, undefined);
       notifyOnLayoutRecursive(nodeContext.current);
     }
 
@@ -194,7 +196,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
         const { node } = nodeContext.current;
 
         if (node.isDirty()) {
-          node.calculateLayout();
+          node.calculateLayout(undefined, undefined);
           notifyOnLayoutRecursive(nodeContext.current);
         }
       }

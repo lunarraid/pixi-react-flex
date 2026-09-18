@@ -1,8 +1,11 @@
 import { BitmapFontManager, BitmapText, CanvasTextMetrics, HTMLText, HTMLTextStyle, measureHtmlText, Text, TextStyle } from 'pixi.js';
-import { forwardRef, RefObject, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
-import { LayoutNode, LayoutProps } from '../flex/Layout.js';
-import { Style } from '../flex/applyLayoutProperties.js';
+import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import { Style } from '../flex/applyLayoutProperties';
+
+type AnyTextStyle = TextStyle | HTMLTextStyle;
+type AnyText = Text | HTMLText | BitmapText;
 
 extend({ BitmapText, HTMLText, Text });
 
@@ -14,7 +17,7 @@ export type AbstractTextStyle = Style & Partial<HTMLTextStyle>;
 
 const NO_STYLE = {} as AbstractTextStyle;
 
-export type AbstractTextProps = PixiReactElementProps & LayoutProps & {
+export type AbstractTextProps = PixiReactElementProps<typeof Text> & LayoutProps & {
   View?: 'pixiText' | 'pixiBitmapText' | 'pixiHtmlText',
   text?: string,
   style?: AbstractTextStyle
@@ -28,17 +31,31 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
 
   const dts = TextStyle.defaultTextStyle;
 
-  const viewRef: RefObject<any> = useRef(null);
-  const layoutRef = useRef(null);
-  const textStyleRef: RefObject<TextStyle | HTMLTextStyle> = useRef(null);
+  const viewRef = useRef<AnyText>(null!);
+  const layoutRef = useRef<NodeContext>(null!);
+  const textStyleRef = useRef<AnyTextStyle | null>(null);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
-  const { View = 'pixiText', onLayout, style = NO_STYLE, text } = props;
+  const {
+    View = 'pixiText',
+    onLayout,
+    style = NO_STYLE,
+    text,
+    measure: _measure,
+    ...pixiProps
+  } = props;
 
-  if (!textStyleRef.current) {
-    textStyleRef.current = View === 'pixiHtmlText' ? new HTMLTextStyle() : new TextStyle();
+  const wantsHtml = View === 'pixiHtmlText';
+  const isHtml = textStyleRef.current instanceof HTMLTextStyle;
+
+  if (!textStyleRef.current || wantsHtml !== isHtml) {
+    textStyleRef.current = wantsHtml ? new HTMLTextStyle() : new TextStyle();
   }
+
+  const textStyle = textStyleRef.current as AnyTextStyle & Record<string, unknown>;
+  const styleRecord = style as unknown as Record<string, unknown>;
+  const dtsRecord = dts as unknown as Record<string, unknown>;
 
   const hasManualWordWrapWidth = style?.wordWrapWidth !== undefined;
 
@@ -48,23 +65,25 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
       continue;
     }
 
-    const value = style[key] !== undefined ? style[key] : dts[key];
+    const value = styleRecord[key] !== undefined ? styleRecord[key] : dtsRecord[key];
 
-    if (textStyleRef.current[key] !== value) {
-      textStyleRef.current[key] = value;
+    if (textStyle[key] !== value) {
+      textStyle[key] = value;
     }
   }
 
 
-  const { styleKey } = textStyleRef.current;
+  const { styleKey } = textStyle;
 
   useLayoutEffect(() => {
     layoutRef.current.node.markDirty();
   }, [ styleKey, text ]);
 
+  const textValue = text ?? '';
+
   const measure = useCallback((layoutWidth: number) => {
 
-    const currentTextStyle = textStyleRef.current;
+    const currentTextStyle = textStyleRef.current!;
 
     if (currentTextStyle.wordWrap && !hasManualWordWrapWidth) {
       currentTextStyle.wordWrapWidth = layoutWidth;
@@ -74,19 +93,19 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
 
       case 'pixiBitmapText':
       {
-        const { width, height, scale } = BitmapFontManager.measureText(text, currentTextStyle);
+        const { width, height, scale } = BitmapFontManager.measureText(textValue, currentTextStyle);
         return { width: width * scale, height: height * scale };
       }
 
       case 'pixiHtmlText':
       {
-        const { width, height } = measureHtmlText(text, currentTextStyle as HTMLTextStyle);
+        const { width, height } = measureHtmlText(textValue, currentTextStyle as HTMLTextStyle);
         return { width, height };
       }
 
       case 'pixiText':
       {
-        const { width, height } = CanvasTextMetrics.measureText(text, currentTextStyle);
+        const { width, height } = CanvasTextMetrics.measureText(textValue, currentTextStyle);
         return { width, height };
       }
 
@@ -94,7 +113,7 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
 
     }
 
-  }, [ View, hasManualWordWrapWidth, text ]);
+  }, [ View, hasManualWordWrapWidth, textValue ]);
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
 
@@ -111,9 +130,9 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
   }, [ hasManualWordWrapWidth, onLayout ]);
 
   return (
-    <LayoutNode measure={ measure } ref={ layoutRef } style={ props.style } onLayout={ setLayout }>
+    <LayoutNode measure={ measure } ref={ layoutRef } style={ style } onLayout={ setLayout }>
       {/* @ts-ignore */}
-      <View ref={ viewRef } { ...props } style={ textStyleRef.current } />
+      <View ref={ viewRef } { ...pixiProps } text={ text } style={ textStyleRef.current } />
     </LayoutNode>
   );
 });

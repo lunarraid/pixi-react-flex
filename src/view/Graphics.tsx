@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { Graphics, Rectangle } from 'pixi.js';
-import { LayoutNode, LayoutProps } from '../flex/Layout.js';
+import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
 
 extend({ Graphics });
 
@@ -13,12 +13,12 @@ const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref
     throw new Error('Only containers allow children');
   }
 
-  const layoutRef = useRef(null);
-  const viewRef = useRef(null);
+  const layoutRef = useRef<NodeContext>(null!);
+  const viewRef = useRef<Graphics>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
-  const { onLayout } = props;
+  const { style, onLayout, measure: _measure, ...pixiProps } = props;
 
   useLayoutEffect(() => {
     const { context } = viewRef.current;
@@ -27,7 +27,7 @@ const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref
 
     context.on('update', onUpdate);
 
-    return () => context.off('update', onUpdate);
+    return () => { context.off('update', onUpdate); };
   }, []);
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
@@ -45,8 +45,8 @@ const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref
   }, []);
 
   return (
-    <LayoutNode ref={ layoutRef } style={ props.style } measure={ measure } onLayout={ setLayout }>
-      <pixiGraphics { ...props } ref={ viewRef } />
+    <LayoutNode ref={ layoutRef } style={ style } measure={ measure } onLayout={ setLayout }>
+      <pixiGraphics { ...pixiProps } ref={ viewRef } />
     </LayoutNode>
   );
 

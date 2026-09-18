@@ -1,8 +1,8 @@
 import { NineSliceSprite } from 'pixi.js';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useLayoutEffect, useImperativeHandle, useRef } from 'react';
-import { LayoutNode, LayoutProps } from '../flex/Layout.js';
-import getTextureFromProps from '../helpers/getTextureFromProps.js';
+import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import getTextureFromProps from '../helpers/getTextureFromProps';
 
 extend({ NineSliceSprite });
 
@@ -14,12 +14,18 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
     throw new Error('Only containers allow children');
   }
 
-  const viewRef = useRef(null);
-  const layoutRef = useRef(null);
+  const viewRef = useRef<NineSliceSprite>(null!);
+  const layoutRef = useRef<NodeContext>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
-  const { onLayout, style = {} } = props;
+  const {
+    onLayout,
+    style = {},
+    measure: _measure,
+    image: _image,
+    ...pixiProps
+  } = props as NineSliceSpriteProps & { image?: string };
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
     const view = viewRef.current;
@@ -31,12 +37,19 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
 
   const texture = getTextureFromProps(props);
 
+  const sliceStyle = style as {
+    bottomHeight?: number,
+    rightWidth?: number,
+    topHeight?: number,
+    leftWidth?: number
+  };
+
   const {
     bottomHeight = texture.height * 0.5,
     rightWidth = texture.width * 0.5,
     topHeight = texture.height * 0.5,
     leftWidth = texture.width * 0.5
-  } = style;
+  } = sliceStyle;
 
   useLayoutEffect(() => {
 
@@ -65,8 +78,8 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
   }, [ texture, bottomHeight, rightWidth, topHeight, leftWidth ]);
 
   return (
-    <LayoutNode ref={ layoutRef } style={ props.style } onLayout={ setLayout }>
-      <pixiNineSliceSprite { ...props } ref={ viewRef } texture={ texture } />
+    <LayoutNode ref={ layoutRef } style={ style } onLayout={ setLayout }>
+      <pixiNineSliceSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
     </LayoutNode>
   );
 
