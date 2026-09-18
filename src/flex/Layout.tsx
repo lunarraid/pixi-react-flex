@@ -67,6 +67,7 @@ export type NodeContext = {
   childMap: Record<string, NodeContext>,
   node: Node,
   needsReindex: boolean,
+  isFreed: boolean,
   cachedLayout: { top: number, left: number, width: number, height: number },
   index: number,
   style: Style | null,
@@ -74,6 +75,8 @@ export type NodeContext = {
   measure: MeasureFunction | null,
   registerChildContext: (key: string, childContext: NodeContext) => NodeContext,
   unregisterChildContext: (key: string) => void,
+  markNeedsReindex: () => void,
+  reindex: () => void,
   applyLayoutProperties: (style: Style) => void
 };
 
@@ -84,6 +87,7 @@ function createNodeContext (config: Config | undefined): NodeContext  {
     childMap: {},
     node: Yoga.Node.create(config),
     needsReindex: false,
+    isFreed: false,
     cachedLayout: { top: 0, left: 0, width: -1, height: -1 },
     index: -1,
     style: null,
@@ -106,7 +110,40 @@ function createNodeContext (config: Config | undefined): NodeContext  {
       const parent = node.getParent();
       parent?.removeChild(node);
       delete context.childMap[key];
-      context.needsReindex = true;
+      context.markNeedsReindex();
+    },
+
+    // Children register and reorder from their own effects, which run whether or not this node re-renders (a child
+    // remounting under a parent that does not). The reindex is queued rather than left to this node's next effect so
+    // such children still join the Yoga tree; the microtask batches every child change from one commit.
+    markNeedsReindex () {
+      if (!context.needsReindex) {
+        context.needsReindex = true;
+        queueMicrotask(context.reindex);
+      }
+    },
+
+    reindex () {
+      if (!context.needsReindex || context.isFreed) {
+        return;
+      }
+
+      const { childMap, node } = context;
+      const childCount = node.getChildCount();
+
+      Object.keys(childMap)
+        .sort((a, b) => childMap[a].index - childMap[b].index)
+        .forEach((key, index) => {
+          const child = childMap[key].node;
+
+          if (index >= childCount || !(node.getChild(index) as YogaNodeWithAlias).isAliasOf(child)) {
+            child.getParent()?.removeChild(child);
+            node.insertChild(child, index);
+          }
+
+        });
+
+      context.needsReindex = false;
     },
 
     applyLayoutProperties (style: Style): boolean {
@@ -185,9 +222,7 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
     applyLayoutProperties(c.node, c.style, memoStyle);
     c.style = memoStyle;
 
-    if (parent) {
-      parent.needsReindex = true;
-    }
+    parent?.markNeedsReindex();
 
   }, [ parent, index, memoStyle ]);
 
@@ -195,25 +230,9 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   useEffect(() => {
 
-    const { childMap, node, needsReindex } = nodeContext.current;
+    const { node } = nodeContext.current;
 
-    if (needsReindex) {
-      const childCount = node.getChildCount();
-
-      Object.keys(childMap)
-        .sort((a, b) => childMap[a].index - childMap[b].index)
-        .forEach((key, index) => {
-          const child = childMap[key].node;
-
-          if (index >= childCount || !(node.getChild(index) as YogaNodeWithAlias).isAliasOf(child)) {
-            child.getParent()?.removeChild(child);
-            node.insertChild(child, index);
-          }
-
-        });
-
-      nodeContext.current.needsReindex = false;
-    }
+    nodeContext.current.reindex();
 
     if (!parent && node.isDirty()) {
       node.calculateLayout(undefined, undefined);
@@ -224,10 +243,11 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   useEffect(() => {
 
-    const { node } = nodeContext.current;
+    const context = nodeContext.current;
 
     return () => {
-      node.free();
+      context.isFreed = true;
+      context.node.free();
     };
 
   }, []);
