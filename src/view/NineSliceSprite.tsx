@@ -3,10 +3,26 @@ import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useLayoutEffect, useImperativeHandle, useRef } from 'react';
 import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
 import getTextureFromProps from '../helpers/getTextureFromProps';
+import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
-extend({ NineSliceSprite });
+/** A nine-slice with the layout transform; its `width` / `height` are its geometry, so it takes its box's size. */
+export class LayoutNineSliceSprite extends LayoutView(NineSliceSprite) {
 
-export type NineSliceSpriteProps = PixiReactElementProps<typeof NineSliceSprite> & LayoutProps;
+  override _applyLayoutSize (width: number, height: number): void {
+    this.setSize(width, height);
+  }
+
+}
+
+extend({ LayoutNineSliceSprite });
+
+declare module '@pixi/react' {
+  interface PixiElements {
+    pixiLayoutNineSliceSprite: PixiReactElementProps<typeof LayoutNineSliceSprite>;
+  }
+}
+
+export type NineSliceSpriteProps = PixiReactElementProps<typeof LayoutNineSliceSprite> & LayoutTransformProps & LayoutProps;
 
 const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: NineSliceSpriteProps, ref) {
 
@@ -14,7 +30,7 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
     throw new Error('Only containers allow children');
   }
 
-  const viewRef = useRef<NineSliceSprite>(null!);
+  const viewRef = useRef<LayoutNineSliceSprite>(null!);
   const layoutRef = useRef<NodeContext>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
@@ -28,10 +44,7 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
   } = props as NineSliceSpriteProps & { image?: string };
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
-    const view = viewRef.current;
-    view.position.set(x, y);
-    view.width = width;
-    view.height = height;
+    viewRef.current.applyLayout(x, y, width, height);
     onLayout?.(x, y, width, height);
   }, [ onLayout ]);
 
@@ -79,7 +92,7 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
 
   return (
     <LayoutNode ref={ layoutRef } style={ style } onLayout={ setLayout }>
-      <pixiNineSliceSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
+      <pixiLayoutNineSliceSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
     </LayoutNode>
   );
 

@@ -1,17 +1,17 @@
-import { Container, Rectangle } from 'pixi.js';
+import { Container, type PointData } from 'pixi.js';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useImperativeHandle, useRef, type ForwardRefExoticComponent, type Ref } from 'react';
 import { LayoutNode, LayoutChildren, LayoutProps, NodeContext } from '../flex/Layout';
+import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
-extend({ Container });
+/** The ref is the component's own (`ContainerRef`), so `@pixi/react`'s `ref` prop type is left out. */
+export type ContainerProps = Omit<PixiReactElementProps<typeof LayoutContainer>, 'ref'> & LayoutTransformProps & LayoutProps;
 
-export type ContainerProps = PixiReactElementProps<typeof Container> & LayoutProps;
-
-export type ContainerRef = { view: Container, layout: NodeContext };
+export type ContainerRef = { view: LayoutContainer, layout: NodeContext };
 
 const FlexContainer: ForwardRefExoticComponent<ContainerProps & { ref?: Ref<ContainerRef> }> = forwardRef<ContainerRef, ContainerProps>(function FlexContainer (props, ref) {
 
-  const viewRef = useRef<Container>(null!);
+  const viewRef = useRef<LayoutContainer>(null!);
   const layoutRef = useRef<NodeContext>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
@@ -19,21 +19,18 @@ const FlexContainer: ForwardRefExoticComponent<ContainerProps & { ref?: Ref<Cont
   const { style, onLayout, measure: _measure, children, ...pixiProps } = props;
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
-    const c = viewRef.current;
-    c.boundsArea ||= new Rectangle();
-    c.boundsArea.width = width;
-    c.boundsArea.height = height;
-    c.position.set(x, y);
+    // No `boundsArea`: a container is bounded by its children, so filters on it aren't clipped to its box.
+    viewRef.current.applyLayout(x, y, width, height);
     onLayout?.(x, y, width, height);
   }, [ onLayout ]);
 
   return (
     <LayoutNode style={ style } onLayout={ setLayout } ref={ layoutRef }>
-      <pixiContainer { ...pixiProps } ref={ viewRef }>
+      <pixiLayoutContainer { ...pixiProps } ref={ viewRef }>
         <LayoutChildren>
           { children }
         </LayoutChildren>
-      </pixiContainer>
+      </pixiLayoutContainer>
     </LayoutNode>
   );
 
@@ -42,3 +39,20 @@ const FlexContainer: ForwardRefExoticComponent<ContainerProps & { ref?: Ref<Cont
 FlexContainer.displayName = 'Container';
 
 export default FlexContainer;
+
+/** A container hit anywhere in its layout box when interactive (children are hit first, so overhanging ones still are). */
+export class LayoutContainer extends LayoutView(Container) {
+
+  containsPoint (point: PointData): boolean {
+    return this.layoutBox.contains(point.x, point.y);
+  }
+
+}
+
+extend({ LayoutContainer });
+
+declare module '@pixi/react' {
+  interface PixiElements {
+    pixiLayoutContainer: PixiReactElementProps<typeof LayoutContainer>;
+  }
+}

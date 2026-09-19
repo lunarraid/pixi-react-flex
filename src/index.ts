@@ -10,19 +10,24 @@ import {
 
 import applyLayoutProperties, { type LayoutStyle, type Style, pickStyle } from './flex/applyLayoutProperties';
 import BitmapText from './view/BitmapText';
-import Container from './view/Container';
-import Graphics from './view/Graphics';
+import { LayoutBitmapText, LayoutHTMLText, LayoutText } from './view/AbstractText';
+import Container, { LayoutContainer, type ContainerProps, type ContainerRef } from './view/Container';
+import LayoutView, { type LayoutTransformProps, type LayoutViewMembers } from './view/LayoutView';
+import LayoutSprite from './view/LayoutSprite';
+import Graphics, { LayoutGraphics } from './view/Graphics';
 import HTMLText from './view/HTMLText';
-import NineSliceSprite from './view/NineSliceSprite';
+import NineSliceSprite, { LayoutNineSliceSprite } from './view/NineSliceSprite';
 import Sprite from './view/Sprite';
 import Text from './view/Text';
-import TilingSprite from './view/TilingSprite';
+import TilingSprite, { LayoutTilingSprite } from './view/TilingSprite';
 import getTextureFromProps from './helpers/getTextureFromProps';
 
 export {
   applyLayoutProperties,
   BitmapText,
   Container,
+  ContainerProps,
+  ContainerRef,
   Graphics,
   HTMLText,
   NineSliceSprite,
@@ -32,6 +37,17 @@ export {
   getTextureFromProps,
   LayoutConfigContext,
   LayoutConfigOptions,
+  LayoutBitmapText,
+  LayoutGraphics,
+  LayoutHTMLText,
+  LayoutNineSliceSprite,
+  LayoutSprite,
+  LayoutText,
+  LayoutTilingSprite,
+  LayoutTransformProps,
+  LayoutView,
+  LayoutViewMembers,
+  LayoutContainer,
   LayoutErrata,
   LayoutIndexContext,
   LayoutNodeContext,

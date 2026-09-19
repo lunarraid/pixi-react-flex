@@ -2,10 +2,20 @@ import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef }
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { Graphics, Rectangle } from 'pixi.js';
 import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
-extend({ Graphics });
+/** Graphics with the layout transform; drawn in its own coordinates, so it isn't sized. */
+export class LayoutGraphics extends LayoutView(Graphics) {}
 
-export type GraphicsProps = PixiReactElementProps<typeof Graphics> & LayoutProps;
+extend({ LayoutGraphics });
+
+declare module '@pixi/react' {
+  interface PixiElements {
+    pixiLayoutGraphics: PixiReactElementProps<typeof LayoutGraphics>;
+  }
+}
+
+export type GraphicsProps = PixiReactElementProps<typeof LayoutGraphics> & LayoutTransformProps & LayoutProps;
 
 const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref) {
 
@@ -14,7 +24,7 @@ const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref
   }
 
   const layoutRef = useRef<NodeContext>(null!);
-  const viewRef = useRef<Graphics>(null!);
+  const viewRef = useRef<LayoutGraphics>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
@@ -35,7 +45,7 @@ const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref
     view.boundsArea ||= new Rectangle();
     view.boundsArea.width = width;
     view.boundsArea.height = height;
-    view.position.set(x, y);
+    view.applyLayout(x, y, width, height);
     onLayout?.(x, y, width, height);
   }, [ onLayout ]);
 
@@ -46,7 +56,7 @@ const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref
 
   return (
     <LayoutNode ref={ layoutRef } style={ style } measure={ measure } onLayout={ setLayout }>
-      <pixiGraphics { ...pixiProps } ref={ viewRef } />
+      <pixiLayoutGraphics { ...pixiProps } ref={ viewRef } />
     </LayoutNode>
   );
 

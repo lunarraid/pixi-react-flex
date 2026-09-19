@@ -1,13 +1,20 @@
 import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
-import { Sprite } from 'pixi.js';
 import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
 import getTextureFromProps from '../helpers/getTextureFromProps';
+import LayoutSprite from './LayoutSprite';
+import type { LayoutTransformProps } from './LayoutView';
 import { MeasureMode } from 'yoga-layout/load';
 
-extend({ Sprite });
+extend({ LayoutSprite });
 
-export type SpriteProps = PixiReactElementProps<typeof Sprite> & LayoutProps;
+declare module '@pixi/react' {
+  interface PixiElements {
+    pixiLayoutSprite: PixiReactElementProps<typeof LayoutSprite>;
+  }
+}
+
+export type SpriteProps = PixiReactElementProps<typeof LayoutSprite> & LayoutTransformProps & LayoutProps;
 
 const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
 
@@ -16,7 +23,7 @@ const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
   }
 
   const layoutRef = useRef<NodeContext>(null!);
-  const viewRef = useRef<Sprite>(null!);
+  const viewRef = useRef<LayoutSprite>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
@@ -25,9 +32,7 @@ const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
   const { style, onLayout, measure: _measure, image: _image, ...pixiProps } = props as SpriteProps & { image?: string };
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
-    const s = viewRef.current;
-    s.position.set(x, y);
-    s.setSize(width, height);
+    viewRef.current.applyLayout(x, y, width, height);
     onLayout?.(x, y, width, height);
   }, [ onLayout ]);
 
@@ -72,7 +77,7 @@ const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
 
   return (
     <LayoutNode ref={ layoutRef } style={ style } measure={ measure } onLayout={ setLayout }>
-      <pixiSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
+      <pixiLayoutSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
     </LayoutNode>
   );
 

@@ -3,7 +3,7 @@ import AbstractText, { AbstractTextProps } from './AbstractText';
 
 const FlexBitmapText = forwardRef(function FlexBitmapText (props: AbstractTextProps, ref) {
   return (
-    <AbstractText { ...props } ref={ ref } View="pixiBitmapText" />
+    <AbstractText { ...props } ref={ ref } View="pixiLayoutBitmapText" />
   );
 });
 

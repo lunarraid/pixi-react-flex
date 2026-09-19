@@ -3,14 +3,31 @@ import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
 import getTextureFromProps from '../helpers/getTextureFromProps';
+import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
-extend({ TilingSprite });
+/** A tiling sprite with the layout transform; its `width` / `height` are its geometry, so it takes its box's size. */
+export class LayoutTilingSprite extends LayoutView(TilingSprite) {
 
-export type TilingSpriteProps = PixiReactElementProps<typeof TilingSprite> & LayoutProps;
+  override _applyLayoutSize (width: number, height: number): void {
+    this.setSize(width, height);
+  }
+
+}
+
+extend({ LayoutTilingSprite });
+
+declare module '@pixi/react' {
+  interface PixiElements {
+    pixiLayoutTilingSprite: PixiReactElementProps<typeof LayoutTilingSprite>;
+  }
+}
+
+// Typed from pixi's `TilingSprite`: its constructor overloads don't survive the mixin for `PixiReactElementProps`.
+export type TilingSpriteProps = PixiReactElementProps<typeof TilingSprite> & LayoutTransformProps & LayoutProps;
 
 const FlexTilingSprite = forwardRef(function FlexTilingSprite (props: TilingSpriteProps, ref) {
 
-  const viewRef = useRef<TilingSprite>(null!);
+  const viewRef = useRef<LayoutTilingSprite>(null!);
   const layoutRef = useRef<NodeContext>(null!);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
@@ -26,17 +43,14 @@ const FlexTilingSprite = forwardRef(function FlexTilingSprite (props: TilingSpri
   } = props as TilingSpriteProps & { image?: string };
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
-    const view = viewRef.current;
-    view.position.set(x, y);
-    view.width = width;
-    view.height = height;
+    viewRef.current.applyLayout(x, y, width, height);
     onLayout?.(x, y, width, height);
   }, [ onLayout ]);
 
   return (
     <LayoutNode ref={ layoutRef } style={ style } onLayout={ setLayout }>
       {/* @ts-ignore */}
-      <pixiTilingSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
+      <pixiLayoutTilingSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
     </LayoutNode>
   );
 
