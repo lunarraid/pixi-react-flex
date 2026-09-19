@@ -1,7 +1,7 @@
 import { TilingSprite } from 'pixi.js';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
-import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import { LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
 import getTextureFromProps from '../helpers/getTextureFromProps';
 import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
@@ -48,10 +48,10 @@ const FlexTilingSprite = forwardRef(function FlexTilingSprite (props: TilingSpri
   }, [ onLayout ]);
 
   return (
-    <LayoutNode ref={ layoutRef } style={ style } onLayout={ setLayout }>
+    <LayoutNodeBase viewRef={ viewRef } ref={ layoutRef } style={ style } onLayout={ setLayout }>
       {/* @ts-ignore */}
       <pixiLayoutTilingSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
-    </LayoutNode>
+    </LayoutNodeBase>
   );
 
 });

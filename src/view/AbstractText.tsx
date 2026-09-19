@@ -1,7 +1,7 @@
 import { BitmapFontManager, BitmapText, CanvasTextMetrics, type Container, HTMLText, HTMLTextStyle, measureHtmlText, Text, TextStyle } from 'pixi.js';
 import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
-import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import { LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
 import LayoutView, { type LayoutTransformProps, type LayoutViewMembers } from './LayoutView';
 import { Style } from '../flex/applyLayoutProperties';
 
@@ -205,10 +205,10 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
   }, [ hasManualWordWrapWidth, onLayout ]);
 
   return (
-    <LayoutNode measure={ measure } ref={ layoutRef } style={ style } onLayout={ setLayout }>
+    <LayoutNodeBase viewRef={ viewRef } measure={ measure } ref={ layoutRef } style={ style } onLayout={ setLayout }>
       {/* @ts-ignore */}
       <View ref={ viewRef } { ...pixiProps } text={ text } style={ textStyleRef.current } />
-    </LayoutNode>
+    </LayoutNodeBase>
   );
 });
 

@@ -1,7 +1,9 @@
-import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode } from 'react';
+import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode, type RefObject } from 'react';
+import type { Container } from 'pixi.js';
 import { Errata, loadYoga, type Config, type MeasureFunction, type Node } from 'yoga-layout/load';
 import applyLayoutProperties, { Style, useShallowMemo } from './applyLayoutProperties';
 import { useApplication } from '@pixi/react';
+import { compareViews, isLayoutView, linkView, unlinkView } from './viewOrder';
 
 type YogaNodeWithAlias = Node & { isAliasOf(other: Node): boolean };
 
@@ -64,33 +66,67 @@ function getConfig (options: LayoutConfigOptions | null): Config | undefined {
 export type OnLayoutFunction = (x: number, y: number, width: number, height: number) => void;
 
 export type NodeContext = {
+  key: string,
   childMap: Record<string, NodeContext>,
+  /** The node this one is laid out in: none for a root, or for a node laid out on its own (see `detachedRoots`). */
+  parent: NodeContext | null,
+  /** The view laid out by this node, once linked. */
+  view: Container | null,
+  config: Config | undefined,
   node: Node,
   needsReindex: boolean,
   isFreed: boolean,
   cachedLayout: { top: number, left: number, width: number, height: number },
   index: number,
   style: Style | null,
+  /** The layout values last applied by `applyLayoutProperties` (animation), on top of `style`. */
+  animatedStyle: Style | null,
   onLayout: OnLayoutFunction | null,
   measure: MeasureFunction | null,
   registerChildContext: (key: string, childContext: NodeContext) => NodeContext,
   unregisterChildContext: (key: string) => void,
   markNeedsReindex: () => void,
   reindex: () => void,
-  applyLayoutProperties: (style: Style) => void
+  applyLayoutProperties: (style: Style) => boolean,
+  revive: () => void
 };
+
+// Nodes whose children changed, reindexed together before the next layout pass. Children register and reorder from
+// their own effects (and views as they're placed), which happen whether or not their parent re-renders (a child
+// remounting under a parent that does not), so a parent can't rely on an effect of its own.
+const pendingReindex = new Set<NodeContext>();
+
+// Nodes laid out on their own though rendered under another: their views are in plain pixi containers, which aren't
+// laid out, so neither is anything placed in them (see the registering effect). Laid out along with the roots.
+const detachedRoots = new Set<NodeContext>();
+
+function flushReindex () {
+  pendingReindex.forEach((context) => context.reindex());
+  pendingReindex.clear();
+}
+
+// Children in React order: by their index among their parent's React children, then, for children sharing one (a
+// Fragment's), by where their views were placed.
+function compareChildren (a: NodeContext, b: NodeContext) {
+  return a.index - b.index || compareViews(a.view, b.view);
+}
 
 function createNodeContext (config: Config | undefined): NodeContext  {
 
   const context: NodeContext = {
 
+    key: `Layout${ LAYOUT_ID++ }`,
     childMap: {},
+    parent: null,
+    view: null,
+    config,
     node: Yoga.Node.create(config),
     needsReindex: false,
     isFreed: false,
     cachedLayout: { top: 0, left: 0, width: -1, height: -1 },
     index: -1,
     style: null,
+    animatedStyle: null,
     onLayout: null,
     measure: null,
 
@@ -113,13 +149,10 @@ function createNodeContext (config: Config | undefined): NodeContext  {
       context.markNeedsReindex();
     },
 
-    // Children register and reorder from their own effects, which run whether or not this node re-renders (a child
-    // remounting under a parent that does not). The reindex is queued rather than left to this node's next effect so
-    // such children still join the Yoga tree; the microtask batches every child change from one commit.
     markNeedsReindex () {
       if (!context.needsReindex) {
         context.needsReindex = true;
-        queueMicrotask(context.reindex);
+        pendingReindex.add(context);
       }
     },
 
@@ -131,10 +164,9 @@ function createNodeContext (config: Config | undefined): NodeContext  {
       const { childMap, node } = context;
       const childCount = node.getChildCount();
 
-      Object.keys(childMap)
-        .sort((a, b) => childMap[a].index - childMap[b].index)
-        .forEach((key, index) => {
-          const child = childMap[key].node;
+      Object.values(childMap)
+        .sort(compareChildren)
+        .forEach(({ node: child }, index) => {
 
           if (index >= childCount || !(node.getChild(index) as YogaNodeWithAlias).isAliasOf(child)) {
             child.getParent()?.removeChild(child);
@@ -146,9 +178,26 @@ function createNodeContext (config: Config | undefined): NodeContext  {
       context.needsReindex = false;
     },
 
+    // Sets the values on the node over `style`'s, when any differ from the last call's; a key dropped since then
+    // reverts to `style`'s value, or yoga's default.
     applyLayoutProperties (style: Style): boolean {
-      return applyLayoutProperties(context.node, context.style, style, context.style);
-    }
+      const didChange = applyLayoutProperties(context.node, context.animatedStyle, style, context.style);
+      context.animatedStyle = style;
+      return didChange;
+    },
+
+    // A freed node gets a new yoga node in the same state: its style is applied in full again by the effect that
+    // applies it, and its children, still registered, go back in on the next reindex.
+    revive () {
+      context.node = Yoga.Node.create(context.config);
+      context.isFreed = false;
+      context.style = null;
+      context.animatedStyle = null;
+      context.cachedLayout.width = -1;
+      context.measure && context.node.setMeasureFunc(context.measure);
+      context.needsReindex = false;
+      context.markNeedsReindex();
+    },
 
   };
 
@@ -171,9 +220,17 @@ export type LayoutProps = {
   children?: ReactNode
 };
 
-const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: LayoutProps, ref) {
+type LayoutNodeBaseProps = LayoutProps & {
+  /**
+   * The view the node lays out. Where it's placed tells where the node is: among siblings that share a React
+   * position (see `viewOrder`), and whether it's in a plain pixi container (see the registering effect).
+   */
+  viewRef: RefObject<Container | null>
+};
 
-  const { measure = null, onLayout = null, style } = props;
+const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: LayoutNodeBaseProps, ref) {
+
+  const { measure = null, onLayout = null, style, viewRef } = props;
 
   const index = useContext(LayoutIndexContext);
   const parent = useContext(LayoutNodeContext);
@@ -198,19 +255,51 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   const memoStyle = useShallowMemo(style) as Style;
 
-  const keyRef = useRef<string | null>(null);
-
-  if (!keyRef.current) {
-    keyRef.current = `Layout${ LAYOUT_ID++ }`;
-  }
+  // StrictMode (in development) and <Activity> disconnect a component's effects and run them again, and the node is
+  // freed on the way out, by the effect below: it's revived here, before the effects after this register and style it.
+  useLayoutEffect(() => {
+    if (nodeContext.current.isFreed) {
+      nodeContext.current.revive();
+    }
+  }, []);
 
   useLayoutEffect(() => {
 
-    const key = keyRef.current!;
-    parent?.registerChildContext(key, nodeContext.current);
+    const context = nodeContext.current;
+    const view = viewRef.current;
+
+    if (!view) {
+      return;
+    }
+
+    context.view = view;
+    linkView(view, context);
 
     return () => {
-      parent?.unregisterChildContext(key);
+      unlinkView(view);
+      context.view = null;
+    };
+
+  }, [ viewRef ]);
+
+  // After the view is linked.
+  useLayoutEffect(() => {
+
+    const context = nodeContext.current;
+    const viewParent = context.view?.parent;
+
+    // A view in a plain pixi container isn't part of its layout parent's layout: it's a root of its own.
+    if (parent && viewParent && !isLayoutView(viewParent)) {
+      detachedRoots.add(context);
+      return () => { detachedRoots.delete(context); };
+    }
+
+    context.parent = parent;
+    parent?.registerChildContext(context.key, context);
+
+    return () => {
+      parent?.unregisterChildContext(context.key);
+      context.parent = null;
     };
 
   }, [ parent ]);
@@ -222,24 +311,9 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
     applyLayoutProperties(c.node, c.style, memoStyle);
     c.style = memoStyle;
 
-    parent?.markNeedsReindex();
+    c.parent?.markNeedsReindex();
 
   }, [ parent, index, memoStyle ]);
-
-  // Reorder any changed indexes
-
-  useEffect(() => {
-
-    const { node } = nodeContext.current;
-
-    nodeContext.current.reindex();
-
-    if (!parent && node.isDirty()) {
-      node.calculateLayout(undefined, undefined);
-      notifyOnLayoutRecursive(nodeContext.current);
-    }
-
-  });
 
   useEffect(() => {
 
@@ -252,7 +326,42 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
 
   }, []);
 
+  return (
+    <LayoutNodeContext.Provider value={ nodeContext.current }>
+      <LayoutChildren>
+        { props.children }
+      </LayoutChildren>
+      { parent ? null : <LayoutRoot context={ nodeContext.current } /> }
+    </LayoutNodeContext.Provider>
+  );
+
+});
+
+function calculateLayout (context: NodeContext) {
+  flushReindex();
+  layOutRoot(context);
+  detachedRoots.forEach(layOutRoot);
+}
+
+function layOutRoot (context: NodeContext) {
+  if (!context.isFreed && context.node.isDirty()) {
+    context.node.calculateLayout(undefined, undefined);
+    notifyOnLayoutRecursive(context);
+  }
+}
+
+/**
+ * Lays out the tree under a root node: after each of the root's renders, and before each frame for changes that
+ * didn't re-render it. Rendered by root nodes only, so the rest of the tree has no per-render effect or application
+ * subscription.
+ */
+function LayoutRoot ({ context }: { context: NodeContext }) {
+
   const { app, isInitialised } = useApplication();
+
+  useEffect(() => {
+    calculateLayout(context);
+  });
 
   useEffect(() => {
 
@@ -260,38 +369,23 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
       return;
     }
 
-    const needsListener = !parent;
-
     const runner = {
       prerender () {
-        const { node } = nodeContext.current;
-
-        if (node.isDirty()) {
-          node.calculateLayout(undefined, undefined);
-          notifyOnLayoutRecursive(nodeContext.current);
-        }
+        calculateLayout(context);
       }
     };
 
-    if (needsListener) {
-      app.renderer.runners.prerender.add(runner);
-    }
+    app.renderer.runners.prerender.add(runner);
 
     return () => {
-      needsListener && app.renderer.runners.prerender.remove(runner);
+      app.renderer.runners.prerender.remove(runner);
     };
 
-  }, [ app, isInitialised, parent ]);
+  }, [ app, isInitialised, context ]);
 
-  return (
-    <LayoutNodeContext.Provider value={ nodeContext.current }>
-      <LayoutChildren>
-        { props.children }
-      </LayoutChildren>
-    </LayoutNodeContext.Provider>
-  );
+  return null;
 
-});
+}
 
 function notifyOnLayout (context: NodeContext) {
 
@@ -339,4 +433,5 @@ const loadPromise = loadYoga().then((yoga) => {
   return { default: LayoutNodeInternal };
 });
 
-export const LayoutNode = lazy(() => loadPromise);
+/** The layout node behind every view: the public `LayoutNode` is a view of its own (`view/LayoutNode`). */
+export const LayoutNodeBase = lazy(() => loadPromise);

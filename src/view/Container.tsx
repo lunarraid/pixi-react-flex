@@ -1,7 +1,7 @@
 import { Container, type PointData } from 'pixi.js';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useImperativeHandle, useRef, type ForwardRefExoticComponent, type Ref } from 'react';
-import { LayoutNode, LayoutChildren, LayoutProps, NodeContext } from '../flex/Layout';
+import { LayoutNodeBase, LayoutChildren, LayoutProps, NodeContext } from '../flex/Layout';
 import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
 /** The ref is the component's own (`ContainerRef`), so `@pixi/react`'s `ref` prop type is left out. */
@@ -25,13 +25,13 @@ const FlexContainer: ForwardRefExoticComponent<ContainerProps & { ref?: Ref<Cont
   }, [ onLayout ]);
 
   return (
-    <LayoutNode style={ style } onLayout={ setLayout } ref={ layoutRef }>
+    <LayoutNodeBase viewRef={ viewRef } style={ style } onLayout={ setLayout } ref={ layoutRef }>
       <pixiLayoutContainer { ...pixiProps } ref={ viewRef }>
         <LayoutChildren>
           { children }
         </LayoutChildren>
       </pixiLayoutContainer>
-    </LayoutNode>
+    </LayoutNodeBase>
   );
 
 });

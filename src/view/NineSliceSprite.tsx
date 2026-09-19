@@ -1,7 +1,7 @@
 import { NineSliceSprite } from 'pixi.js';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { forwardRef, useCallback, useLayoutEffect, useImperativeHandle, useRef } from 'react';
-import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import { LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
 import getTextureFromProps from '../helpers/getTextureFromProps';
 import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
@@ -91,9 +91,9 @@ const FlexNineSliceSprite = forwardRef(function FlexNineSliceSprite (props: Nine
   }, [ texture, bottomHeight, rightWidth, topHeight, leftWidth ]);
 
   return (
-    <LayoutNode ref={ layoutRef } style={ style } onLayout={ setLayout }>
+    <LayoutNodeBase viewRef={ viewRef } ref={ layoutRef } style={ style } onLayout={ setLayout }>
       <pixiLayoutNineSliceSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
-    </LayoutNode>
+    </LayoutNodeBase>
   );
 
 });

@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
-import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import { LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
 import getTextureFromProps from '../helpers/getTextureFromProps';
 import LayoutSprite from './LayoutSprite';
 import type { LayoutTransformProps } from './LayoutView';
@@ -76,9 +76,9 @@ const FlexSprite = forwardRef(function FlexSprite (props: SpriteProps, ref) {
   }, [ texture ]);
 
   return (
-    <LayoutNode ref={ layoutRef } style={ style } measure={ measure } onLayout={ setLayout }>
+    <LayoutNodeBase viewRef={ viewRef } ref={ layoutRef } style={ style } measure={ measure } onLayout={ setLayout }>
       <pixiLayoutSprite { ...pixiProps } ref={ viewRef } texture={ texture } />
-    </LayoutNode>
+    </LayoutNodeBase>
   );
 
 });

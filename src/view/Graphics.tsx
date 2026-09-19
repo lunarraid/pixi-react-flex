@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { Graphics, Rectangle } from 'pixi.js';
-import { LayoutNode, LayoutProps, NodeContext } from '../flex/Layout';
+import { LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
 import LayoutView, { type LayoutTransformProps } from './LayoutView';
 
 /** Graphics with the layout transform; drawn in its own coordinates, so it isn't sized. */
@@ -55,9 +55,9 @@ const FlexGraphics = forwardRef(function FlexGraphics (props: GraphicsProps, ref
   }, []);
 
   return (
-    <LayoutNode ref={ layoutRef } style={ style } measure={ measure } onLayout={ setLayout }>
+    <LayoutNodeBase viewRef={ viewRef } ref={ layoutRef } style={ style } measure={ measure } onLayout={ setLayout }>
       <pixiLayoutGraphics { ...pixiProps } ref={ viewRef } />
-    </LayoutNode>
+    </LayoutNodeBase>
   );
 
 });

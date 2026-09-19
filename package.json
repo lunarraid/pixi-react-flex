@@ -23,14 +23,17 @@
   "scripts": {
     "build": "rollup -c",
     "start": "rollup -c -w",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p test/tsconfig.json",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "yoga-layout": "^3.1.0",
     "@react-spring/animated": "^10.0.3",
     "@react-spring/core": "^10.0.3",
-    "@react-spring/types": "^10.0.3"
+    "@react-spring/types": "^10.0.3",
+    "yoga-layout": "^3.1.0"
   },
   "peerDependencies": {
     "@pixi/react": "^8.0.4",
@@ -53,7 +56,8 @@
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-typescript2": "^0.36.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
   },
   "files": [
     "dist"

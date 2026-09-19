@@ -1,4 +1,5 @@
-import { Rectangle, type Container } from 'pixi.js';
+import { Rectangle, type Container, type ContainerChild } from 'pixi.js';
+import { setChildOrder, viewMoved } from '../flex/viewOrder';
 
 /*
  * The transform model every flex view shares, after React Native: layout decides the view's box, and a transform
@@ -33,6 +34,30 @@ interface LayoutViewState {
   translateY: number;
   originX: number;
   originY: number;
+  /** The children in the order React placed them (see `sortChildren`). */
+  order: ContainerChild[];
+}
+
+/** Moves `child` in `order` to before `before`, to the end for `null`, or out for `undefined`. */
+function moveInOrder (order: ContainerChild[], child: ContainerChild, before: ContainerChild | null | undefined) {
+  const current = order.indexOf(child);
+
+  if (current !== -1) {
+    order.splice(current, 1);
+  }
+
+  if (before === undefined) {
+    return;
+  }
+
+  const index = before ? order.indexOf(before) : -1;
+  index === -1 ? order.push(child) : order.splice(index, 0, child);
+}
+
+// Stable, so equal zIndexes keep their order. An unset zIndex is 0: `zIndex={ value }` with no value sets it to
+// undefined, which pixi's own sort doesn't compare as a number.
+function byZIndex (a: ContainerChild, b: ContainerChild) {
+  return (a.zIndex || 0) - (b.zIndex || 0);
 }
 
 /** What `LayoutView` adds to a pixi view. */
@@ -69,15 +94,23 @@ export default function LayoutView<TBase extends ViewConstructor> (Base: TBase):
     declare _layoutState: LayoutViewState | undefined;
 
     get _layout (): LayoutViewState {
-      return this._layoutState ??= {
+      return this._layoutState ??= this._createLayoutState();
+    }
+
+    _createLayoutState (): LayoutViewState {
+      const state: LayoutViewState = {
         box: new Rectangle(),
         x: 0,
         y: 0,
         translateX: 0,
         translateY: 0,
         originX: 0.5,
-        originY: 0.5
+        originY: 0.5,
+        order: []
       };
+
+      setChildOrder(this, state.order);
+      return state;
     }
 
     get layoutBox (): Rectangle {
@@ -133,6 +166,82 @@ export default function LayoutView<TBase extends ViewConstructor> (Base: TBase):
     _applyLayoutOrigin (): void {
       const { box, originX, originY } = this._layout;
       this.origin.set(box.width * originX, box.height * originY);
+    }
+
+    // Children draw by zIndex and then in the order React placed them, as in React Native. pixi sorts `children` in
+    // place, and `@pixi/react` places a child before its next sibling by that sibling's index in the sorted array, so
+    // React's order is lost from `children`: it's kept in `order` instead, from the calls `@pixi/react` makes.
+
+    addChild<U extends ContainerChild[]> (...children: U): U[0] {
+      if (children.length !== 1) {
+        return super.addChild(...children);
+      }
+
+      const [ child ] = children;
+      super.addChild(child);
+      moveInOrder(this._layout.order, child, null);
+      viewMoved(child);
+
+      // pixi moves a child that's already here to the end without marking the sort dirty, as `@pixi/react` does when
+      // children are reordered (A, B, C to C, B, A appends B then A), which would leave them drawn in that order.
+      if (this.sortableChildren) {
+        this.sortDirty = true;
+      }
+
+      return child;
+    }
+
+    addChildAt<U extends ContainerChild> (child: U, index: number): U {
+      const { children } = this;
+      const current = children.indexOf(child);
+
+      if (current === index) {
+        return child;
+      }
+
+      // The child goes before whichever child is at `index` once it's out of the array.
+      const before = children[current !== -1 && current < index ? index + 1 : index] ?? null;
+      super.addChildAt(child, index);
+      moveInOrder(this._layout.order, child, before);
+      viewMoved(child);
+
+      // pixi's `addChild` sorts for a child that arrives with a zIndex, but `addChildAt` (a child mounting between
+      // others) doesn't, so the first one wouldn't make the container sortable.
+      if (child.zIndex !== 0) {
+        child.depthOfChildModified();
+      }
+
+      return child;
+    }
+
+    removeChild<U extends ContainerChild[]> (...children: U): U[0] {
+      if (children.length !== 1) {
+        return super.removeChild(...children);
+      }
+
+      const [ child ] = children;
+      super.removeChild(child);
+      moveInOrder(this._layout.order, child, undefined);
+      return child;
+    }
+
+    // @ts-expect-error pixi types its mixed-in `sortChildren` as a property, but it's a prototype method.
+    sortChildren (): void {
+      if (!this.sortDirty) {
+        return;
+      }
+
+      const { children } = this;
+      const layout = this._layout;
+
+      // Out of step if children were changed some other way (`removeChildren`, `swapChildren`): pixi's order then.
+      if (layout.order.length !== children.length) {
+        layout.order = children.slice();
+        setChildOrder(this, layout.order);
+      }
+
+      this.sortDirty = false;
+      layout.order.slice().sort(byZIndex).forEach((child, i) => { children[i] = child; });
     }
 
   };
