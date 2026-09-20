@@ -18,6 +18,7 @@ import Graphics, { LayoutGraphics } from './view/Graphics';
 import HTMLText from './view/HTMLText';
 import NineSliceSprite, { LayoutNineSliceSprite } from './view/NineSliceSprite';
 import Sprite from './view/Sprite';
+import ScrollContainer, { ScrollController, scrollDragEvents, type DragHandler, type ScrollEvent, type ScrollHandler, type ScrollContainerProps } from './view/ScrollContainer';
 import Text from './view/Text';
 import TilingSprite, { LayoutTilingSprite } from './view/TilingSprite';
 import getTextureFromProps from './helpers/getTextureFromProps';
@@ -56,6 +57,13 @@ export {
   LayoutNodeProps,
   LayoutNodeRef,
   LayoutMarker,
+  ScrollContainer,
+  ScrollContainerProps,
+  ScrollController,
+  ScrollEvent,
+  ScrollHandler,
+  DragHandler,
+  scrollDragEvents,
   LAYOUT_KEYS,
   pickStyle,
   setTextStyleValue,
