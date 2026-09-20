@@ -1,5 +1,5 @@
 import { BitmapFontManager, BitmapText, CanvasTextMetrics, type Container, HTMLText, HTMLTextStyle, measureHtmlText, Text, TextStyle } from 'pixi.js';
-import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
 import { LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
 import LayoutView, { type LayoutTransformProps, type LayoutViewMembers } from './LayoutView';
@@ -39,6 +39,10 @@ function AlignedText<TBase extends TextViewConstructor> (Base: TBase): TBase {
 
   return class AlignedText extends Base {
 
+    // The text's measured width, until the text or its style changes. Not a field with a value, which would be set
+    // after pixi's constructor has already updated the view.
+    declare _measuredWidth: number | undefined;
+
     _alignOffset (): number {
       // pixi's constructor assigns the text and any transform props, which place the view, before it sets the style.
       if (!this.style) {
@@ -51,7 +55,9 @@ function AlignedText<TBase extends TextViewConstructor> (Base: TBase): TBase {
         return 0;
       }
 
-      return (this.layoutBox.width - measureLayoutText(this instanceof BitmapText, this.text, this.style).width) * fraction;
+      this._measuredWidth ??= measureLayoutText(this instanceof BitmapText, this.text, this.style).width;
+
+      return (this.layoutBox.width - this._measuredWidth) * fraction;
     }
 
     override _applyLayoutPosition (): void {
@@ -66,6 +72,7 @@ function AlignedText<TBase extends TextViewConstructor> (Base: TBase): TBase {
     }
 
     override onViewUpdate (): void {
+      this._measuredWidth = undefined;
       super.onViewUpdate();
       this._applyLayoutPosition();
       this._applyLayoutOrigin();
@@ -96,6 +103,40 @@ textStyleKeys.push('cssOverrides', 'tagStyles');
 
 export type AbstractTextStyle = Style & Partial<HTMLTextStyle>;
 
+// The values last set on each text component's style. A value is compared with these rather than with the style's own,
+// whose getters return normalised or proxied copies that never equal what was set.
+const styleValues = new WeakMap<AnyTextStyle, Record<string, unknown>>();
+
+function createTextStyle (html: boolean): AnyTextStyle {
+  const textStyle = html ? new HTMLTextStyle() : new TextStyle();
+  styleValues.set(textStyle, { ...TextStyle.defaultTextStyle });
+  return textStyle;
+}
+
+/**
+ * Sets a value on a text component's style if it isn't the one last set, which is all that writes to one (but for
+ * layout, to `wordWrapWidth`). Returns whether it was set: never, for any other object.
+ */
+export function setTextStyleValue (textStyle: unknown, key: string, value: unknown): boolean {
+  const values = styleValues.get(textStyle as AnyTextStyle);
+
+  if (!values) {
+    return false;
+  }
+
+  const target = textStyle as Record<string, unknown>;
+  const last = key === 'wordWrapWidth' ? target[key] : values[key];
+
+  if (last === value) {
+    return false;
+  }
+
+  target[key] = value;
+  values[key] = value;
+
+  return true;
+}
+
 const NO_STYLE = {} as AbstractTextStyle;
 
 export type AbstractTextProps = PixiReactElementProps<typeof Text> & LayoutTransformProps & LayoutProps & {
@@ -110,11 +151,8 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
     throw new Error('Only containers allow children');
   }
 
-  const dts = TextStyle.defaultTextStyle;
-
   const viewRef = useRef<AnyText>(null!);
   const layoutRef = useRef<NodeContext>(null!);
-  const textStyleRef = useRef<AnyTextStyle | null>(null);
 
   useImperativeHandle(ref, () => ({ view: viewRef.current, layout: layoutRef.current }), []);
 
@@ -127,68 +165,61 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
     ...pixiProps
   } = props;
 
-  const wantsHtml = View === 'pixiLayoutHTMLText';
-  const isHtml = textStyleRef.current instanceof HTMLTextStyle;
+  const isHtml = View === 'pixiLayoutHTMLText';
+  const textStyle = useMemo(() => createTextStyle(isHtml), [ isHtml ]);
+  const hasManualWordWrapWidth = style.wordWrapWidth !== undefined;
 
-  if (!textStyleRef.current || wantsHtml !== isHtml) {
-    textStyleRef.current = wantsHtml ? new HTMLTextStyle() : new TextStyle();
-  }
-
-  const textStyle = textStyleRef.current as AnyTextStyle & Record<string, unknown>;
-  const styleRecord = style as unknown as Record<string, unknown>;
-  const dtsRecord = dts as unknown as Record<string, unknown>;
-
-  const hasManualWordWrapWidth = style?.wordWrapWidth !== undefined;
-
-  for (const key of textStyleKeys) {
-
-    if (!hasManualWordWrapWidth && key === 'wordWrapWidth') {
-      continue;
-    }
-
-    const value = styleRecord[key] !== undefined ? styleRecord[key] : dtsRecord[key];
-
-    if (textStyle[key] !== value) {
-      textStyle[key] = value;
-    }
-  }
-
-
-  const { styleKey } = textStyle;
-
+  // The view's style follows the component's once it commits, rather than as it renders: a render may never commit,
+  // or be of a hidden tree. After the layout node's effects, which set the measure function that lets it be dirtied
+  // (and dirty it for a new one, as the text's is when the text changes).
   useLayoutEffect(() => {
-    layoutRef.current.node.markDirty();
-  }, [ styleKey, text ]);
+
+    const styleRecord = style as unknown as Record<string, unknown>;
+    const defaults = TextStyle.defaultTextStyle as unknown as Record<string, unknown>;
+    let didChange = false;
+
+    for (const key of textStyleKeys) {
+
+      // Layout's, unless it's given.
+      if (key === 'wordWrapWidth' && !hasManualWordWrapWidth) {
+        continue;
+      }
+
+      const value = styleRecord[key] !== undefined ? styleRecord[key] : defaults[key];
+      didChange = setTextStyleValue(textStyle, key, value) || didChange;
+    }
+
+    didChange && layoutRef.current.node.markDirty();
+
+  });
 
   const textValue = text ?? '';
 
   const measure = useCallback((layoutWidth: number) => {
 
-    const currentTextStyle = textStyleRef.current!;
-
-    if (currentTextStyle.wordWrap && !hasManualWordWrapWidth) {
-      currentTextStyle.wordWrapWidth = layoutWidth;
+    if (textStyle.wordWrap && !hasManualWordWrapWidth) {
+      textStyle.wordWrapWidth = layoutWidth;
     }
 
     switch (View) {
 
       case 'pixiLayoutBitmapText':
-        return measureLayoutText(true, textValue, currentTextStyle as TextStyle);
+        return measureLayoutText(true, textValue, textStyle as TextStyle);
 
       case 'pixiLayoutHTMLText':
       {
-        const { width, height } = measureHtmlText(textValue, currentTextStyle as HTMLTextStyle);
+        const { width, height } = measureHtmlText(textValue, textStyle as HTMLTextStyle);
         return { width, height };
       }
 
       case 'pixiLayoutText':
-        return measureLayoutText(false, textValue, currentTextStyle as TextStyle);
+        return measureLayoutText(false, textValue, textStyle as TextStyle);
 
       default: throw new Error('Unknown View Type');
 
     }
 
-  }, [ View, hasManualWordWrapWidth, textValue ]);
+  }, [ View, textStyle, hasManualWordWrapWidth, textValue ]);
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
 
@@ -207,7 +238,7 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
   return (
     <LayoutNodeBase viewRef={ viewRef } measure={ measure } ref={ layoutRef } style={ style } onLayout={ setLayout }>
       {/* @ts-ignore */}
-      <View ref={ viewRef } { ...pixiProps } text={ text } style={ textStyleRef.current } />
+      <View ref={ viewRef } { ...pixiProps } text={ text } style={ textStyle } />
     </LayoutNodeBase>
   );
 });

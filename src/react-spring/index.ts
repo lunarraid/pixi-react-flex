@@ -1,9 +1,9 @@
 import { createHost } from '@react-spring/animated';
 import type { Lookup } from '@react-spring/types';
-import { BitmapText, Container, Graphics, HTMLText, NineSliceSprite, pickStyle, Sprite, Text, TilingSprite } from '..';
+import { BitmapText, Container, Graphics, HTMLText, LAYOUT_KEYS, NineSliceSprite, setTextStyleValue, Sprite, Text, TilingSprite } from '..';
 import { applyProps } from '@pixi/react';
 import type { NodeContext } from '../flex/Layout';
-import { defaultValues, type Style } from '../flex/applyLayoutProperties';
+import type { Style } from '../flex/applyLayoutProperties';
 
 const PRIMITIVES = [
   BitmapText,
@@ -25,7 +25,9 @@ type AnimatedHostNode = { view: PixiReactView, layout: NodeContext };
  * its style rather than set on the view (`width` and `height` would otherwise scale it). Not `position`, which is the
  * view's.
  */
-const LAYOUT_PROPS = new Set(Object.keys(defaultValues).filter((key) => key !== 'position'));
+const LAYOUT_PROPS = new Set(LAYOUT_KEYS.filter((key) => key !== 'position'));
+
+const STYLE_LAYOUT_KEYS = new Set(LAYOUT_KEYS);
 
 const host = createHost(PRIMITIVES, {
 
@@ -47,28 +49,38 @@ const host = createHost(PRIMITIVES, {
     return result;
   },
 
-  // Between renders, with only the animated values: layout values go to yoga, the rest to the view, and only what
-  // changed is set.
+  // Between renders, with only the animated values: layout values go to yoga, the rest to the view (the rest of a
+  // style to the view's own, a text's), and only what changed is set.
   applyAnimatedValues (node: AnimatedHostNode, props: Lookup) {
-    const { style, ...restProps } = props;
     const view = node.view as unknown as Record<string, unknown>;
-    const viewProps: Lookup = {};
-    let layoutStyle: Lookup | null = style ? pickStyle(style) : null;
-    let hasViewProps = false;
+    const { layout } = node;
+    let layoutStyle: Lookup | null = null;
+    let viewProps: Lookup | null = null;
+    let didTextStyleChange = false;
 
-    for (const key in restProps) {
-      const value = restProps[key];
+    for (const key in props) {
+      const value = props[key];
 
-      if (LAYOUT_PROPS.has(key)) {
+      if (key === 'style') {
+        for (const styleKey in value) {
+          if (STYLE_LAYOUT_KEYS.has(styleKey)) {
+            (layoutStyle ||= {})[styleKey] = value[styleKey];
+          } else if (setTextStyleValue(view.style, styleKey, value[styleKey])) {
+            didTextStyleChange = true;
+          }
+        }
+      } else if (LAYOUT_PROPS.has(key)) {
         (layoutStyle ||= {})[key] = value;
       } else if (view[key] !== value) {
-        viewProps[key] = value;
-        hasViewProps = true;
+        (viewProps ||= {})[key] = value;
       }
     }
 
-    hasViewProps && applyProps(node.view, viewProps);
-    layoutStyle && node.layout.applyLayoutProperties(layoutStyle as Style);
+    viewProps && applyProps(node.view, viewProps);
+    layoutStyle && layout.applyLayoutProperties(layoutStyle as Style);
+
+    // A text is measured by its style.
+    didTextStyleChange && !layout.isFreed && layout.node.markDirty();
 
     // Handled either way; `false` would make react-spring re-render the component.
     return true;

@@ -35,36 +35,28 @@ export function viewMoved (view: Container) {
   contexts.get(view)?.parent?.markNeedsReindex();
 }
 
-/** Compares two views by React order: negative when `a` comes first, 0 when that isn't known. */
-export function compareViews (a: Container | null, b: Container | null): number {
-  if (!a || !b) {
-    return 0;
-  }
+/**
+ * A comparison of `parent`'s child views by React order: negative when `a` comes first, 0 when that isn't known (a
+ * view not placed yet). Made for one sort, while the tree stands still: the order is looked up once, if it's needed.
+ *
+ * A layout node's children all have their views in its own: one in a plain pixi container is laid out on its own.
+ */
+export function createViewComparator (parent: Container | null) {
+  let positions: Map<ContainerChild, number> | undefined;
 
-  const pathA = ancestry(a);
-  const pathB = ancestry(b);
-  let i = 0;
+  return function compareViews (a: Container | null, b: Container | null): number {
+    if (!a || !b || !parent) {
+      return 0;
+    }
 
-  while (i < pathA.length && i < pathB.length && pathA[i] === pathB[i]) {
-    i++;
-  }
+    if (!positions) {
+      positions = new Map();
+      (childOrders.get(parent) ?? parent.children).forEach((child, index) => positions!.set(child, index));
+    }
 
-  if (i === 0 || i === pathA.length || i === pathB.length) {
-    return 0;
-  }
+    const positionA = positions.get(a);
+    const positionB = positions.get(b);
 
-  const parent = pathA[i - 1];
-  const order = childOrders.get(parent) ?? parent.children;
-  return order.indexOf(pathA[i]) - order.indexOf(pathB[i]);
-}
-
-/** The view and its ancestors, root first. */
-function ancestry (view: Container) {
-  const path: Container[] = [];
-
-  for (let node: Container | null = view; node; node = node.parent) {
-    path.push(node);
-  }
-
-  return path.reverse();
+    return positionA === undefined || positionB === undefined ? 0 : positionA - positionB;
+  };
 }

@@ -30,54 +30,6 @@ import { Align,
  * DEALINGS IN THE SOFTWARE.
  **/
 
-export const defaultValues: Record<string, string | number> = {
-  left: NaN,
-  right: NaN,
-  top: NaN,
-  bottom: NaN,
-  alignContent: 'flex-start',
-  alignItems: 'stretch',
-  alignSelf: 'auto',
-  flexDirection: 'row',
-  flexWrap: 'no-wrap',
-  justifyContent: 'flex-start',
-  margin: NaN,
-  marginBottom: NaN,
-  marginHorizontal: NaN,
-  marginLeft: NaN,
-  marginRight: NaN,
-  marginTop: NaN,
-  marginVertical: NaN,
-  overflow: 'visible',
-  display: 'flex',
-  flex: 0,
-  flexBasis: 'auto',
-  flexGrow: 0,
-  flexShrink: 1,
-  aspectRatio: NaN,
-  width: 'auto',
-  height: 'auto',
-  minWidth: NaN,
-  minHeight: NaN,
-  maxWidth: NaN,
-  maxHeight: NaN,
-  borderWidth: NaN,
-  borderBottomWidth: NaN,
-  borderLeftWidth: NaN,
-  borderRightWidth: NaN,
-  borderTopWidth: NaN,
-  padding: NaN,
-  paddingBottom: NaN,
-  paddingHorizontal: NaN,
-  paddingLeft: NaN,
-  paddingRight: NaN,
-  paddingTop: NaN,
-  paddingVertical: NaN,
-  position: 'relative',
-  rowGap: 0,
-  columnGap: 0
-};
-
 type Dimension = number | `${ number }%`;
 
 export type LayoutStyle = {
@@ -142,7 +94,7 @@ export function pickStyle (value: unknown): LayoutStyle {
   const source = value as Record<string, unknown>;
 
   for (const key in source) {
-    if (defaultValues.hasOwnProperty(key)) {
+    if (setterMap[key]) {
       result[key] = source[key];
     }
   }
@@ -560,6 +512,9 @@ const setterMap: Record<string, (node: Node, value: never) => void> = {
 
 };
 
+/** Every key of a style that is laid out. */
+export const LAYOUT_KEYS: readonly string[] = Object.keys(setterMap);
+
 export function isShallowEqual (props1: Record<string, unknown> | null | undefined, props2: Record<string, unknown> | null | undefined): boolean {
 
   if (props1 === props2) {
@@ -597,36 +552,117 @@ export function useShallowMemo<T extends Record<string, unknown> | null | undefi
   return memoizedValueRef.current;
 };
 
-export default function applyLayoutProperties (
-  node: Node,
-  oldProps: Record<string, unknown> | null | undefined,
-  newProps: Record<string, unknown>,
-  defaults: Record<string, unknown> | null = null
-) {
-  if (isShallowEqual(oldProps, newProps)) {
-    return false;
+type Props = Record<string, unknown> | null | undefined;
+
+// The shorthands, which write different yoga edges for different numbers of values. Yoga prefers a narrower edge to a
+// wider one whichever was set last, so edges a value wrote that the next doesn't would stay in force.
+const SHORTHANDS = new Set([ 'margin', 'padding', 'borderWidth' ]);
+
+function valueCount (value: unknown) {
+  return typeof value === 'string' ? value.split(' ').length : 1;
+}
+
+// Whether going from one style to the other takes more than setting values: a key was dropped (or became undefined,
+// which is the same), or a shorthand changed the edges it writes.
+function needsReset (oldProps: Props, newProps: Props) {
+  for (const propName in oldProps) {
+    const oldValue = oldProps[propName];
+
+    if (!setterMap[propName] || oldValue === undefined) {
+      continue;
+    }
+
+    const value = newProps?.[propName];
+
+    if (value === undefined) {
+      return true;
+    }
+
+    if (value !== oldValue && SHORTHANDS.has(propName) && valueCount(value) !== valueCount(oldValue)) {
+      return true;
+    }
   }
 
-  for (const propName in oldProps) {
+  return false;
+}
+
+// Shorthands first, so that an edge's own key (`marginLeft`) wins over one (`margin`) wherever it is in the style, as
+// in React Native.
+function setProperties (node: Node, props: Props) {
+  for (const propName in props) {
+    if (SHORTHANDS.has(propName) && props[propName] !== undefined) {
+      setterMap[propName](node, props[propName] as never);
+    }
+  }
+
+  for (const propName in props) {
     const propSetter = setterMap[propName];
 
-    if (propSetter && !newProps.hasOwnProperty(propName)) {
+    if (propSetter && !SHORTHANDS.has(propName) && props[propName] !== undefined) {
+      propSetter(node, props[propName] as never);
+    }
+  }
+}
 
-      const value = defaults && defaults.hasOwnProperty(propName)
-        ? defaults[propName]
-        : defaultValues[propName];
+// Sets the values that changed, given that no reset is needed. A shorthand that changed may write over its edges' own
+// keys, so everything is set again after one.
+function setChangedProperties (node: Node, oldProps: Props, newProps: Props): boolean {
+  let didChange = false;
+  let didShorthandChange = false;
 
+  for (const propName in newProps) {
+    const propSetter = setterMap[propName];
+    const value = newProps[propName];
+
+    if (!propSetter || value === undefined || value === oldProps?.[propName]) {
+      continue;
+    }
+
+    didChange = true;
+
+    if (SHORTHANDS.has(propName)) {
+      didShorthandChange = true;
+    } else {
       propSetter(node, value as never);
     }
   }
 
-  for (const propName in newProps) {
-    const propSetter = setterMap[propName];
+  didShorthandChange && setProperties(node, newProps);
 
-    if (propSetter) {
-      propSetter(node, newProps[propName] as never);
+  return didChange;
+}
+
+/**
+ * Takes a node from one style to another, and returns whether anything changed. An undefined value is the same as no
+ * key.
+ *
+ * Only values that changed are set. When a key is dropped, the node's style is reset from `pristine`, an unstyled
+ * node with the same config (so with the defaults the node had, which `useWebDefaults` changes), and the style is
+ * set again in full.
+ */
+export default function applyLayoutProperties (node: Node, pristine: Node, oldStyle: Props, newStyle: Props): boolean {
+  if (oldStyle === newStyle) {
+    return false;
+  }
+
+  if (needsReset(oldStyle, newStyle)) {
+    node.copyStyle(pristine);
+    setProperties(node, newStyle);
+    return true;
+  }
+
+  return setChangedProperties(node, oldStyle, newStyle);
+}
+
+/** `style` with the values of `overrides` over its own: `style` itself when there are none. */
+export function mergeStyles<T extends Record<string, unknown>> (style: T | null, overrides: T | null): T | null {
+  let result: Record<string, unknown> | null = null;
+
+  for (const key in overrides) {
+    if (overrides[key] !== undefined) {
+      (result ||= { ...style })[key] = overrides[key];
     }
   }
 
-  return true;
+  return (result as T | null) || style;
 }

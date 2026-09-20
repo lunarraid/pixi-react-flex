@@ -1,9 +1,9 @@
 import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode, type RefObject } from 'react';
 import type { Container } from 'pixi.js';
 import { Errata, loadYoga, type Config, type MeasureFunction, type Node } from 'yoga-layout/load';
-import applyLayoutProperties, { Style, useShallowMemo } from './applyLayoutProperties';
+import applyLayoutProperties, { mergeStyles, Style, useShallowMemo } from './applyLayoutProperties';
 import { useApplication } from '@pixi/react';
-import { compareViews, isLayoutView, linkView, unlinkView } from './viewOrder';
+import { createViewComparator, isLayoutView, linkView, unlinkView } from './viewOrder';
 
 type YogaNodeWithAlias = Node & { isAliasOf(other: Node): boolean };
 
@@ -63,6 +63,26 @@ function getConfig (options: LayoutConfigOptions | null): Config | undefined {
   return config;
 }
 
+// An unstyled node per config, which a node's style is reset from (see `applyLayoutProperties`): its defaults depend
+// on the config.
+const pristineNodes = new WeakMap<Config, Node>();
+let defaultPristineNode: Node | undefined;
+
+function getPristineNode (config: Config | undefined): Node {
+  if (!config) {
+    return defaultPristineNode ||= Yoga.Node.create();
+  }
+
+  let node = pristineNodes.get(config);
+
+  if (!node) {
+    node = Yoga.Node.create(config);
+    pristineNodes.set(config, node);
+  }
+
+  return node;
+}
+
 export type OnLayoutFunction = (x: number, y: number, width: number, height: number) => void;
 
 export type NodeContext = {
@@ -78,16 +98,20 @@ export type NodeContext = {
   isFreed: boolean,
   cachedLayout: { top: number, left: number, width: number, height: number },
   index: number,
+  /** The view's style, as last applied by `setStyle`. */
   style: Style | null,
-  /** The layout values last applied by `applyLayoutProperties` (animation), on top of `style`. */
-  animatedStyle: Style | null,
+  /** Values set over `style`'s by `applyLayoutProperties` (an animation's), until the node is next given a style. */
+  overrides: Style | null,
+  /** What the node was last styled with: `style`, or with any `overrides`, the two merged. */
+  applied: Style | null,
   onLayout: OnLayoutFunction | null,
   measure: MeasureFunction | null,
   registerChildContext: (key: string, childContext: NodeContext) => NodeContext,
   unregisterChildContext: (key: string) => void,
   markNeedsReindex: () => void,
   reindex: () => void,
-  applyLayoutProperties: (style: Style) => boolean,
+  setStyle: (style: Style | null) => boolean,
+  applyLayoutProperties: (overrides: Style | null) => boolean,
   revive: () => void
 };
 
@@ -105,12 +129,6 @@ function flushReindex () {
   pendingReindex.clear();
 }
 
-// Children in React order: by their index among their parent's React children, then, for children sharing one (a
-// Fragment's), by where their views were placed.
-function compareChildren (a: NodeContext, b: NodeContext) {
-  return a.index - b.index || compareViews(a.view, b.view);
-}
-
 function createNodeContext (config: Config | undefined): NodeContext  {
 
   const context: NodeContext = {
@@ -126,7 +144,8 @@ function createNodeContext (config: Config | undefined): NodeContext  {
     cachedLayout: { top: 0, left: 0, width: -1, height: -1 },
     index: -1,
     style: null,
-    animatedStyle: null,
+    overrides: null,
+    applied: null,
     onLayout: null,
     measure: null,
 
@@ -163,9 +182,12 @@ function createNodeContext (config: Config | undefined): NodeContext  {
 
       const { childMap, node } = context;
       const childCount = node.getChildCount();
+      const compareViews = createViewComparator(context.view);
 
+      // Children in React order: by their index among their parent's React children, then, for children sharing one
+      // (a Fragment's), by where their views were placed.
       Object.values(childMap)
-        .sort(compareChildren)
+        .sort((a, b) => a.index - b.index || compareViews(a.view, b.view))
         .forEach(({ node: child }, index) => {
 
           if (index >= childCount || !(node.getChild(index) as YogaNodeWithAlias).isAliasOf(child)) {
@@ -178,21 +200,24 @@ function createNodeContext (config: Config | undefined): NodeContext  {
       context.needsReindex = false;
     },
 
-    // Sets the values on the node over `style`'s, when any differ from the last call's; a key dropped since then
-    // reverts to `style`'s value, or yoga's default.
-    applyLayoutProperties (style: Style): boolean {
-      const didChange = applyLayoutProperties(context.node, context.animatedStyle, style, context.style);
-      context.animatedStyle = style;
-      return didChange;
+    // What a render says is how the node is styled: values set over the last style go.
+    setStyle (style: Style | null): boolean {
+      return restyle(style, null);
     },
 
-    // A freed node gets a new yoga node in the same state: its style is applied in full again by the effect that
-    // applies it, and its children, still registered, go back in on the next reindex.
+    // Sets values over `style`'s until the node is next given a style, in place of the last call's: a key dropped
+    // since then reverts to `style`'s value, or yoga's default.
+    applyLayoutProperties (overrides: Style | null): boolean {
+      return restyle(context.style, overrides);
+    },
+
+    // A freed node gets a new yoga node in the same state: styled in full again, with any values set over its style
+    // while it was freed, and its children, still registered, go back in on the next reindex.
     revive () {
       context.node = Yoga.Node.create(context.config);
       context.isFreed = false;
-      context.style = null;
-      context.animatedStyle = null;
+      context.applied = null;
+      restyle(context.style, context.overrides);
       context.cachedLayout.width = -1;
       context.measure && context.node.setMeasureFunc(context.measure);
       context.needsReindex = false;
@@ -200,6 +225,22 @@ function createNodeContext (config: Config | undefined): NodeContext  {
     },
 
   };
+
+  function restyle (style: Style | null, overrides: Style | null): boolean {
+    context.style = style;
+    context.overrides = overrides;
+
+    // Freed while its effects are disconnected, when it can still be animated: it's styled when it's revived.
+    if (context.isFreed) {
+      return false;
+    }
+
+    const next = mergeStyles(style, overrides);
+    const didChange = applyLayoutProperties(context.node, getPristineNode(context.config), context.applied, next);
+    context.applied = next;
+
+    return didChange;
+  }
 
   return context;
 
@@ -214,6 +255,7 @@ export function LayoutChildren ({ children }: { children?: ReactNode }) {
 }
 
 export type LayoutProps = {
+  /** Sizes a node without children. The node is measured again whenever this changes, so keep it stable. */
   measure?: MeasureFunction,
   onLayout?: OnLayoutFunction,
   style?: Style,
@@ -228,6 +270,8 @@ type LayoutNodeBaseProps = LayoutProps & {
   viewRef: RefObject<Container | null>
 };
 
+const NOT_GIVEN = Symbol('not given');
+
 const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: LayoutNodeBaseProps, ref) {
 
   const { measure = null, onLayout = null, style, viewRef } = props;
@@ -237,21 +281,11 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
   const configOptions = useContext(LayoutConfigContext);
 
   const nodeContext = useRef<NodeContext>(null!);
+  const givenStyle = useRef<Style | undefined | typeof NOT_GIVEN>(NOT_GIVEN);
 
   nodeContext.current ||= createNodeContext(getConfig(configOptions));
-  nodeContext.current.onLayout = onLayout;
 
   useImperativeHandle(ref, () => nodeContext.current, []);
-
-  if (nodeContext.current.measure !== measure) {
-
-    measure
-      ? nodeContext.current.node.setMeasureFunc(measure)
-      : nodeContext.current.node.unsetMeasureFunc();
-
-    nodeContext.current.measure = measure;
-
-  }
 
   const memoStyle = useShallowMemo(style) as Style;
 
@@ -262,6 +296,24 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
       nodeContext.current.revive();
     }
   }, []);
+
+  // In an effect rather than the render: the node is freed while its effects are disconnected, when it can still
+  // render (hidden in an <Activity>), and a render may never commit.
+  useLayoutEffect(() => {
+
+    const context = nodeContext.current;
+
+    context.onLayout = onLayout;
+
+    // A new function measures anew. Only a node with a measure function can be marked dirty, so before one is unset.
+    if (context.measure !== measure) {
+      context.measure && context.node.markDirty();
+      measure ? context.node.setMeasureFunc(measure) : context.node.unsetMeasureFunc();
+      measure && context.node.markDirty();
+      context.measure = measure;
+    }
+
+  }, [ measure, onLayout ]);
 
   useLayoutEffect(() => {
 
@@ -308,12 +360,20 @@ const LayoutNodeInternal = forwardRef(function LayoutNodeInternal (props: Layout
     const c = nodeContext.current;
     c.index = index ?? -1;
 
-    applyLayoutProperties(c.node, c.style, memoStyle);
-    c.style = memoStyle;
-
     c.parent?.markNeedsReindex();
 
-  }, [ parent, index, memoStyle ]);
+  }, [ parent, index ]);
+
+  // Whenever a style is given, whether or not it's a different one: a render from above ends the overrides (an
+  // animated value can become a static one, of the value last rendered), which one from the component's own state,
+  // with the style it had, doesn't. It does nothing when there's nothing to do.
+  useLayoutEffect(() => {
+    // Not when the effect only runs again (the node revived, above, overrides and all).
+    if (givenStyle.current !== style) {
+      givenStyle.current = style;
+      nodeContext.current.setStyle(memoStyle ?? null);
+    }
+  }, [ style, memoStyle ]);
 
   useEffect(() => {
 

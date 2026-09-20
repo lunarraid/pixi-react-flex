@@ -7,9 +7,9 @@ import {
   LayoutChildren
 }  from './flex/Layout';
 
-import applyLayoutProperties, { type LayoutStyle, type Style, pickStyle } from './flex/applyLayoutProperties';
+import { LAYOUT_KEYS, type LayoutStyle, type Style, pickStyle } from './flex/applyLayoutProperties';
 import BitmapText from './view/BitmapText';
-import { LayoutBitmapText, LayoutHTMLText, LayoutText } from './view/AbstractText';
+import { LayoutBitmapText, LayoutHTMLText, LayoutText, setTextStyleValue } from './view/AbstractText';
 import Container, { LayoutContainer, type ContainerProps, type ContainerRef } from './view/Container';
 import LayoutNode, { LayoutMarker, type LayoutNodeLayout, type LayoutNodeProps, type LayoutNodeRef } from './view/LayoutNode';
 import LayoutView, { type LayoutTransformProps, type LayoutViewMembers } from './view/LayoutView';
@@ -23,7 +23,6 @@ import TilingSprite, { LayoutTilingSprite } from './view/TilingSprite';
 import getTextureFromProps from './helpers/getTextureFromProps';
 
 export {
-  applyLayoutProperties,
   BitmapText,
   Container,
   ContainerProps,
@@ -57,7 +56,9 @@ export {
   LayoutNodeProps,
   LayoutNodeRef,
   LayoutMarker,
+  LAYOUT_KEYS,
   pickStyle,
+  setTextStyleValue,
   LayoutStyle,
   Style
 };
