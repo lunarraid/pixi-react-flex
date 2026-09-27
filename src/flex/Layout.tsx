@@ -1,4 +1,4 @@
-import { Children, createContext, forwardRef, lazy, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode, type RefObject } from 'react';
+import { Children, createContext, forwardRef, use, useContext, useEffect, useLayoutEffect, useImperativeHandle, useRef, type ReactNode, type RefObject } from 'react';
 import type { Container } from 'pixi.js';
 import { Errata, loadYoga, type Config, type MeasureFunction, type Node } from 'yoga-layout/load';
 import applyLayoutProperties, { mergeStyles, Style, useShallowMemo } from './applyLayoutProperties';
@@ -488,10 +488,19 @@ function notifyOnLayoutRecursive (context: NodeContext) {
   }
 }
 
-const loadPromise = loadYoga().then((yoga) => {
+const yogaLoad = loadYoga().then((yoga) => {
   Yoga = yoga;
-  return { default: LayoutNodeInternal };
 });
 
-/** The layout node behind every view: the public `LayoutNode` is a view of its own (`view/LayoutNode`). */
-export const LayoutNodeBase = lazy(() => loadPromise);
+/**
+ * The layout node behind every view: the public `LayoutNode` is a view of its own (`view/LayoutNode`). It suspends
+ * only while yoga is still loading. (`React.lazy` suspended on every first render, even with yoga long loaded, and React
+ * holds back a suspended tree's reveal by its fallback throttle, 300 ms: an app's first commit waited that long.)
+ */
+export const LayoutNodeBase = forwardRef(function LayoutNodeBase (props: LayoutNodeBaseProps, ref) {
+  if (!Yoga) {
+    use(yogaLoad);
+  }
+
+  return <LayoutNodeInternal { ...props } ref={ ref } />;
+});
