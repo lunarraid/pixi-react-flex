@@ -1,7 +1,8 @@
 import { BitmapFontManager, BitmapText, CanvasTextMetrics, type Container, HTMLText, HTMLTextStyle, measureHtmlText, Text, TextStyle } from 'pixi.js';
-import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef } from 'react';
+import { forwardRef, useCallback, useContext, useImperativeHandle, useLayoutEffect, useMemo, useRef } from 'react';
 import { extend, PixiReactElementProps } from '@pixi/react';
-import { LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
+import { LayoutConfigContext, LayoutNodeBase, LayoutProps, NodeContext } from '../flex/Layout';
+import keptTextWidth from '../helpers/keptTextWidth';
 import LayoutView, { type LayoutTransformProps, type LayoutViewMembers } from './LayoutView';
 import { Style } from '../flex/applyLayoutProperties';
 
@@ -168,6 +169,8 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
   const isHtml = View === 'pixiLayoutHTMLText';
   const textStyle = useMemo(() => createTextStyle(isHtml), [ isHtml ]);
   const hasManualWordWrapWidth = style.wordWrapWidth !== undefined;
+  // Yoga's default, without a config.
+  const pointScaleFactor = useContext(LayoutConfigContext)?.pointScaleFactor ?? 1;
 
   // The view's style follows the component's once it commits, rather than as it renders: a render may never commit,
   // or be of a hidden tree. After the layout node's effects, which set the measure function that lets it be dirtied
@@ -201,25 +204,34 @@ const AbstractText = forwardRef(function AbstractText (props: AbstractTextProps,
       textStyle.wordWrapWidth = layoutWidth;
     }
 
-    switch (View) {
+    const { width, height } = measureText();
 
-      case 'pixiLayoutBitmapText':
-        return measureLayoutText(true, textValue, textStyle as TextStyle);
+    // The box its lines are wrapped to: none of them may be wider.
+    return { width: keptTextWidth(width, layoutWidth, pointScaleFactor), height };
 
-      case 'pixiLayoutHTMLText':
-      {
-        const { width, height } = measureHtmlText(textValue, textStyle as HTMLTextStyle);
-        return { width, height };
+    function measureText (): { width: number, height: number } {
+
+      switch (View) {
+
+        case 'pixiLayoutBitmapText':
+          return measureLayoutText(true, textValue, textStyle as TextStyle);
+
+        case 'pixiLayoutHTMLText':
+        {
+          const { width, height } = measureHtmlText(textValue, textStyle as HTMLTextStyle);
+          return { width, height };
+        }
+
+        case 'pixiLayoutText':
+          return measureLayoutText(false, textValue, textStyle as TextStyle);
+
+        default: throw new Error('Unknown View Type');
+
       }
-
-      case 'pixiLayoutText':
-        return measureLayoutText(false, textValue, textStyle as TextStyle);
-
-      default: throw new Error('Unknown View Type');
 
     }
 
-  }, [ View, textStyle, hasManualWordWrapWidth, textValue ]);
+  }, [ View, textStyle, hasManualWordWrapWidth, textValue, pointScaleFactor ]);
 
   const setLayout = useCallback((x: number, y: number, width: number, height: number) => {
 
