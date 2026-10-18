@@ -27,7 +27,10 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p test/tsconfig.json",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "release": "node scripts/publish.mjs",
+    "release:npm": "node scripts/publish.mjs --npm",
+    "release:github": "node scripts/publish.mjs --github"
   },
   "dependencies": {
     "@react-spring/animated": "^10.0.3",
