@@ -225,6 +225,46 @@ describe('dragging', () => {
 
 });
 
+describe('flinging', () => {
+
+  /** The speed a release left the content with (points a second): the controller's own. */
+  const velocity = () => (scroll.current as unknown as { _velocity: Point })._velocity.y;
+
+  /** Moves the pointer up the viewport, each move at its time (ms), then lets it go at `upAt`. */
+  function flick (moves: Array<[ time: number, y: number ]>, upAt: number) {
+    const now = vi.spyOn(performance, 'now');
+    for (const [ i, [ time, y ] ] of moves.entries()) {
+      now.mockReturnValue(time);
+      viewport().emit(i ? 'pointermove' : 'pointerdown', pointer(100, y));
+    }
+    now.mockReturnValue(upAt);
+    viewport().emit('pointerup', pointer(100, moves.at(-1)![1]));
+    now.mockRestore();
+  }
+
+  it('leaves with the pointer\'s speed over its last moves', async () => {
+    await render({ dragThreshold: 5 }, rows(20));
+    // 10 points every 16 ms: 625 a second.
+    flick([ [ 0, 400 ], [ 16, 390 ], [ 32, 380 ], [ 48, 370 ], [ 64, 360 ], [ 80, 350 ] ], 81);
+    expect(velocity()).toBeCloseTo(625, 0);
+  });
+
+  it('isn\'t thrown by moves handled together, as React Native hands queued touches over', async () => {
+    await render({ dragThreshold: 5 }, rows(20));
+    // The same flick, its last three moves handled within a millisecond after a busy frame: their last two alone
+    // would be 10 points in 0.2 ms, 50,000 a second.
+    flick([ [ 0, 400 ], [ 16, 390 ], [ 32, 380 ], [ 80, 370 ], [ 80.1, 360 ], [ 80.3, 350 ] ], 80.4);
+    expect(velocity()).toBeCloseTo(50 / 80.3 * 1000, 0);
+  });
+
+  it('flings nothing when the pointer stopped before it was let go', async () => {
+    await render({ dragThreshold: 5 }, rows(20));
+    flick([ [ 0, 400 ], [ 16, 380 ], [ 32, 360 ] ], 200);
+    expect(velocity()).toBe(0);
+  });
+
+});
+
 describe('unmounting', () => {
 
   it('stops ticking and lets go of the viewport', async () => {

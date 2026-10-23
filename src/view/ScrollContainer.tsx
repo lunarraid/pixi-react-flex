@@ -8,6 +8,22 @@ const { abs, log, max, pow } = Math;
 
 const VELOCITY_MIN = 0.1;
 
+/** A fling's speed is the pointer's over its moves in this long before it was let go (from the oldest of them). */
+const VELOCITY_WINDOW_MS = 100;
+
+/**
+ * The least time a fling's speed is measured over. Moves handled closer together than this say nothing of the finger's
+ * speed: on React Native, touch moves queued during a busy frame are handled one after another, within a millisecond,
+ * where the last two alone made a fling of tens of thousands of points a second.
+ */
+const VELOCITY_MIN_SPAN_MS = 30;
+
+/** A pointer held still this long before it's let go flings nothing. */
+const VELOCITY_STALE_MS = 80;
+
+/** The moves a fling's speed is measured from: as many as a window's worth of 120 Hz moves, with room to spare. */
+const MOVE_SAMPLES = 32;
+
 const DAMPING = 0.01;
 const LOG_DAMPING = log(DAMPING);
 
@@ -76,9 +92,8 @@ export class ScrollController {
   private _isDragging = false;
   private readonly _initialPointerPosition = new Point();
   private readonly _lastPointerPosition = new Point();
-  private _lastScrollTime = 0;
-  private _lastScrollDuration = 0;
-  private readonly _lastScrollDelta = new Point();
+  /** The pointer's recent positions, and when it was at them (`performance.now()`), oldest first. */
+  private readonly _moves: Array<{ time: number, x: number, y: number }> = [];
   private readonly _velocity = new Point();
   private _isTicking = false;
 
@@ -275,9 +290,10 @@ export class ScrollController {
       return;
     }
 
-    this._lastScrollTime = performance.now();
     this.getPointerPosition(event, this._initialPointerPosition);
     this._lastPointerPosition.copyFrom(this._initialPointerPosition);
+    this._moves.length = 0;
+    this.recordMove(this._initialPointerPosition);
     this._isPointerDown = true;
     this.setVelocity(0, 0);
     this.isTicking = false;
@@ -288,16 +304,13 @@ export class ScrollController {
       return;
     }
 
-    const now = performance.now();
     const newPosition = this.getPointerPosition(event, SCRATCH_POINT);
 
     const dx = this._isScrollXEnabled ? this._lastPointerPosition.x - newPosition.x : 0;
     const dy = this._isScrollYEnabled ? this._lastPointerPosition.y - newPosition.y : 0;
 
     this._lastPointerPosition.copyFrom(newPosition);
-    this._lastScrollDelta.set(dx, dy);
-    this._lastScrollDuration = now - this._lastScrollTime;
-    this._lastScrollTime = now;
+    this.recordMove(newPosition);
 
     if (this._isDragging) {
       this.scrollBy(dx, dy);
@@ -328,15 +341,52 @@ export class ScrollController {
 
     const maxX = this.scrollWidth - this._viewportWidth;
     const maxY = this.scrollHeight - this._viewportHeight;
-    const multiplier = this._lastScrollDuration ? 1 / (this._lastScrollDuration * 0.001): 0;
-    const multiplierX = multiplier * ((this.scrollLeft < 0 || this.scrollLeft > maxX) ? 0.25 : 1);
-    const multiplierY = multiplier * ((this.scrollTop < 0 || this.scrollTop > maxY) ? 0.25 : 1);
+    const { x: vx, y: vy } = this.releaseVelocity(SCRATCH_POINT);
+    const multiplierX = (this.scrollLeft < 0 || this.scrollLeft > maxX) ? 0.25 : 1;
+    const multiplierY = (this.scrollTop < 0 || this.scrollTop > maxY) ? 0.25 : 1;
 
-    this.setVelocity(this._lastScrollDelta.x * multiplierX, this._lastScrollDelta.y * multiplierY);
+    this.setVelocity(vx * multiplierX, vy * multiplierY);
     this.handlers.current.onDragStop?.(event);
     this._isDragging = false;
     this.isTicking = true;
     scrollDragEvents.emit('dragStop', this);
+  }
+
+  private recordMove ({ x, y }: Point): void {
+    const moves = this._moves;
+    if (moves.length === MOVE_SAMPLES) {
+      moves.shift();
+    }
+    moves.push({ time: performance.now(), x, y });
+  }
+
+  /**
+   * The scrolling speed the pointer leaves with, in points a second: its average over its moves in the last
+   * `VELOCITY_WINDOW_MS` before its last one (over at least `VELOCITY_MIN_SPAN_MS`, from moves before the window if it
+   * must); none if it stopped before it was let go.
+   */
+  private releaseVelocity (out: Point): Point {
+    const moves = this._moves;
+    const last = moves[moves.length - 1];
+
+    if (!last || performance.now() - last.time > VELOCITY_STALE_MS) {
+      return out.set(0, 0);
+    }
+
+    let from = last;
+    for (let i = moves.length - 2; i >= 0; i--) {
+      const move = moves[i];
+      if (last.time - move.time > VELOCITY_WINDOW_MS && last.time - from.time >= VELOCITY_MIN_SPAN_MS) {
+        break;
+      }
+      from = move;
+    }
+
+    const perSecond = 1000 / max(last.time - from.time, VELOCITY_MIN_SPAN_MS);
+    return out.set(
+      this._isScrollXEnabled ? (from.x - last.x) * perSecond : 0,
+      this._isScrollYEnabled ? (from.y - last.y) * perSecond : 0
+    );
   }
 
   private onWheel ({ deltaX, deltaY }: FederatedWheelEvent): void {
